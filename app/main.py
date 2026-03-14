@@ -150,13 +150,13 @@ async def add_track(body: AddTrackRequest):
 async def delete_track(deezer_id: str):
     """Remove a track from the library."""
     library = _read_library()
-    new_library = [t for t in library if t["deezer_id"] != deezer_id]
+    new_library = [t for t in library if str(t["deezer_id"]) != deezer_id]
 
     if len(new_library) == len(library):
         raise HTTPException(status_code=404, detail="Track not found")
 
     # Delete cover file if it exists
-    removed = [t for t in library if t["deezer_id"] == deezer_id]
+    removed = [t for t in library if str(t["deezer_id"]) == deezer_id]
     for t in removed:
         if t.get("cover"):
             cover_path = DATA_DIR / t["cover"]
@@ -177,7 +177,7 @@ async def update_tags(deezer_id: str, body: UpdateTagsRequest):
     library = _read_library()
     found = False
     for track in library:
-        if track["deezer_id"] == deezer_id:
+        if str(track["deezer_id"]) == deezer_id:
             track["tags"] = [t.strip() for t in body.tags if t.strip()]
             found = True
             break

@@ -866,20 +866,50 @@ main {
 }
 
 .form-input {
-    background: var(--bg-glass);
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background: var(--bg-hover);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 0.65rem 0.9rem;
     color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 0.9rem;
-    outline: none;
+    font-family: inherit;
+    font-size: 1rem;
     transition: all var(--transition);
 }
 
 .form-input:focus {
+    outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--bg-secondary);
+}
+
+.form-input[type="file"] {
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.form-input[type="file"]::file-selector-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-glass);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    margin-right: 1rem;
+}
+
+.form-input[type="file"]::file-selector-button:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
 }
 
 .form-input::placeholder {

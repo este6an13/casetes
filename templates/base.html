@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="A personal music collection — songs, collected.">
     <title>{% block title %}Music Library{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=1">
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -23,7 +23,8 @@
             <nav class="site-nav">
                 {% block header_controls %}{% endblock %}
                 <div class="nav-dropdown">
-                    <button class="nav-link nav-dropdown-btn" onclick="document.getElementById('export-menu').classList.toggle('active')">
+                    <button class="nav-link nav-dropdown-btn"
+                        onclick="document.getElementById('export-menu').classList.toggle('active')">
                         <span class="material-symbols-outlined">download</span>
                         <span class="nav-link-text">export</span>
                     </button>
@@ -81,7 +82,7 @@
                 if (exportMenu) exportMenu.classList.remove('active');
             }
         });
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             const dropdown = document.querySelector('.nav-dropdown');
             const exportMenu = document.getElementById('export-menu');
             if (dropdown && !dropdown.contains(e.target) && exportMenu) {

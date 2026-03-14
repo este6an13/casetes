@@ -311,14 +311,10 @@ const Library = (function () {
         }
         html += '</div>';
 
-        // Tags
-        if (track.tags && track.tags.length > 0) {
-            html += '<div class="detail-tags">';
-            track.tags.forEach(tag => {
-                html += '<button class="detail-tag" onclick="event.stopPropagation(); Library.setTag(\'' + escapeAttr(tag) + '\'); closeModal();">' + escapeHtml(tag) + '</button>';
-            });
-            html += '</div>';
-        }
+        // Tags Container
+        html += '<div class="detail-tags-container" id="detail-tags-container">';
+        html += renderTagsUI(track);
+        html += '</div>';
 
         // Links
         html += '<div class="detail-links">';
@@ -406,14 +402,13 @@ const Library = (function () {
         };
     }
 
-    /* ── Delete Track ── */
     async function deleteTrack(deezerId) {
         if (!confirm('Remove this song from your library?')) return;
         try {
             const resp = await fetch('/api/track/' + deezerId, { method: 'DELETE' });
             if (resp.ok) {
                 allTracks = allTracks.filter(t => t.deezer_id !== deezerId);
-                closeModal();
+                window.closeModal();
                 // If in browse view after delete, re-render the browse grid
                 if (browseMode !== 'none' && !browseFilter) {
                     renderBrowseGrid(browseMode);
@@ -425,6 +420,140 @@ const Library = (function () {
             }
         } catch (e) {
             alert('Error: ' + e.message);
+        }
+    }
+
+    /* ── Edit Tags (Inline inside Detail Modal) ── */
+    function renderTagsUI(track) {
+        let html = '<div class="detail-tags" style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;">';
+        if (track.tags && track.tags.length > 0) {
+            track.tags.forEach(tag => {
+                html += '<button class="detail-tag" onclick="event.stopPropagation(); Library.setTag(\'' + escapeAttr(tag) + '\'); window.closeModal();">' + escapeHtml(tag) + '</button>';
+            });
+        }
+        
+        // Always show the edit button
+        html += '<button class="detail-tag detail-tag-edit" onclick="event.stopPropagation(); Library.toggleEditTags(\'' + escapeAttr(track.deezer_id) + '\')" title="Edit tags" style="padding: 0.2rem 0.5rem; background: var(--bg-hover);"><span class="material-symbols-outlined" style="font-size: 1.1rem; vertical-align: middle;">edit</span></button>';
+        html += '</div>';
+        return html;
+    }
+
+    // Temporary state while editing
+    let activeEditDeezerId = null;
+    let activeEditTags = [];
+
+    function toggleEditTags(deezerId) {
+        const track = allTracks.find(t => t.deezer_id === deezerId);
+        if (!track) return;
+
+        activeEditDeezerId = deezerId;
+        activeEditTags = [...(track.tags || [])];
+
+        renderTagEditor();
+        
+        // Focus input automatically
+        setTimeout(() => {
+            const input = document.getElementById('edit-tag-input-field');
+            if (input) input.focus();
+        }, 50);
+    }
+
+    function renderTagEditor() {
+        const container = document.getElementById('detail-tags-container');
+        if (!container) return;
+
+        let html = '<div class="tag-edit-area" style="margin-top: 0.5rem;">';
+        
+        // Chip container
+        html += '<div class="tag-input-container" id="inline-tag-input-container" style="background: var(--bg-secondary); border-color: var(--border-hover);">';
+        
+        activeEditTags.forEach((tag, index) => {
+            html += `<div class="tag-chip" style="margin: 0.2rem;">
+                        <span>${escapeHtml(tag)}</span>
+                        <span style="cursor: pointer; font-size: 1.1rem; line-height: 1; color: var(--text-muted);" onclick="Library.removeEditTag(${index})">&times;</span>
+                    </div>`;
+        });
+
+        // Input field for new tags
+        html += '<input type="text" id="edit-tag-input-field" style="border: none; background: transparent; color: var(--text-primary); flex: 1; min-width: 100px; outline: none; font-family: inherit; font-size: 0.85rem;" placeholder="Add tag...">';
+        html += '</div>';
+
+        // Actions
+        html += '<div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; justify-content: flex-end;">';
+        html += `<button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="Library.cancelEditTags('${escapeAttr(activeEditDeezerId)}')">Cancel</button>`;
+        html += `<button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="Library.saveTags('${escapeAttr(activeEditDeezerId)}')">Save</button>`;
+        html += '</div>';
+        
+        html += '</div>';
+
+        container.innerHTML = html;
+
+        // Attach event listeners
+        const input = document.getElementById('edit-tag-input-field');
+        const inputContainer = document.getElementById('inline-tag-input-container');
+
+        if (inputContainer && input) {
+            inputContainer.addEventListener('click', () => input.focus());
+            input.addEventListener('keydown', (e) => {
+                if (e.key === ' ' || e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    const val = input.value.trim().replace(/,/g, '');
+                    if (val && !activeEditTags.includes(val)) {
+                        activeEditTags.push(val);
+                        renderTagEditor();
+                    }
+                } else if (e.key === 'Backspace' && input.value === '' && activeEditTags.length > 0) {
+                    activeEditTags.pop();
+                    renderTagEditor();
+                }
+            });
+        }
+    }
+
+    function removeEditTag(index) {
+        if (index >= 0 && index < activeEditTags.length) {
+            activeEditTags.splice(index, 1);
+            renderTagEditor();
+        }
+    }
+
+    function cancelEditTags(deezerId) {
+        const track = allTracks.find(t => t.deezer_id === deezerId);
+        if (!track) return;
+        
+        activeEditDeezerId = null;
+        activeEditTags = [];
+        
+        const container = document.getElementById('detail-tags-container');
+        if (container) {
+            container.innerHTML = renderTagsUI(track);
+        }
+    }
+
+    async function saveTags(deezerId) {
+        const track = allTracks.find(t => t.deezer_id === deezerId);
+        if (!track) return;
+
+        track.tags = [...activeEditTags];
+        
+        // Revert UI to display mode with new tags
+        cancelEditTags(deezerId);
+
+        // Update grid if needed
+        if (browseMode !== 'none' || browseFilter) {
+            applyFiltersAndRender();
+        } else {
+            renderTrackGrid(currentTracks);
+        }
+
+        try {
+            await fetch('/api/track/' + deezerId + '/tags', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tags: track.tags })
+            });
+        } catch (e) {
+            console.error("Failed to update tags:", e);
         }
     }
 
@@ -514,5 +643,9 @@ const Library = (function () {
         toggleDetailPreview,
         toggleInlinePlay,
         deleteTrack,
+        toggleEditTags,
+        removeEditTag,
+        cancelEditTags,
+        saveTags,
     };
 })();
