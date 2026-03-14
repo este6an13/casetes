@@ -22,6 +22,17 @@
             <a href="/" class="site-logo">&#9835; library</a>
             <nav class="site-nav">
                 {% block header_controls %}{% endblock %}
+                <div class="nav-dropdown">
+                    <button class="nav-link nav-dropdown-btn" onclick="document.getElementById('export-menu').classList.toggle('active')">
+                        <span class="material-symbols-outlined">download</span>
+                        <span class="nav-link-text">export</span>
+                    </button>
+                    <div class="nav-dropdown-content" id="export-menu">
+                        <a href="/api/export/csv" class="nav-dropdown-item" title="Export as CSV">CSV</a>
+                        <a href="/api/export/json" class="nav-dropdown-item" title="Export as JSON">JSON</a>
+                        <a href="/api/export/xlsx" class="nav-dropdown-item" title="Export as XLSX">XLSX</a>
+                    </div>
+                </div>
                 <a href="/add" class="nav-link">
                     <span class="material-symbols-outlined">add_circle</span>
                     <span class="nav-link-text">add</span>
@@ -62,9 +73,20 @@
             if (audio) { audio.pause(); audio.currentTime = 0; }
         }
 
-        // Close on Escape
+        // Close on Escape or click outside
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closeModal();
+            if (e.key === 'Escape') {
+                closeModal();
+                const exportMenu = document.getElementById('export-menu');
+                if (exportMenu) exportMenu.classList.remove('active');
+            }
+        });
+        document.addEventListener('click', function(e) {
+            const dropdown = document.querySelector('.nav-dropdown');
+            const exportMenu = document.getElementById('export-menu');
+            if (dropdown && !dropdown.contains(e.target) && exportMenu) {
+                exportMenu.classList.remove('active');
+            }
         });
     </script>
 </body>

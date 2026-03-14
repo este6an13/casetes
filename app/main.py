@@ -17,7 +17,10 @@ from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
+import csv
+import io
+import openpyxl
 from pydantic import BaseModel
 
 from .music_service import get_deezer_track, download_cover
@@ -184,3 +187,66 @@ async def update_tags(deezer_id: str, body: UpdateTagsRequest):
 
     _write_library(library)
     return {"message": "tags updated", "tags": library[0]["tags"] if library else []}
+
+
+@app.get("/api/export/{fmt}")
+async def export_library(fmt: str):
+    """Export the music library to CSV, JSON, or XLSX."""
+    library = _read_library()
+    
+    timestamp = datetime.now().strftime("%y%m%d-%H%M%S")
+    filename = f"music-library-data-{timestamp}.{fmt}"
+
+    if fmt == "json":
+        # Stripping out internal paths like 'cover' before exporting
+        export_data = [{k: v for k, v in track.items() if k != 'cover'} for track in library]
+        content = json.dumps(export_data, indent=2, ensure_ascii=False)
+        return Response(
+            content=content,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+        
+    # Prepare flat data for CSV and XLSX
+    headers = ["Title", "Artist", "Album", "Year", "Duration (s)", "Tags", "Deezer ID", "ISRC"]
+    rows = []
+    for track in library:
+        rows.append([
+            track.get("title", ""),
+            track.get("artist", ""),
+            track.get("album", ""),
+            track.get("release_year", ""),
+            track.get("duration", 0),
+            ", ".join(track.get("tags", [])),
+            track.get("deezer_id", ""),
+            track.get("isrc", "")
+        ])
+
+    if fmt == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(headers)
+        writer.writerows(rows)
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+        
+    if fmt == "xlsx":
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Music Library"
+        ws.append(headers)
+        for row in rows:
+            ws.append(row)
+        
+        output = io.BytesIO()
+        wb.save(output)
+        return Response(
+            content=output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+
+    raise HTTPException(status_code=400, detail="Invalid format. Supported: json, csv, xlsx")
