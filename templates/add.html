@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Add Song - Music Library{% endblock %}
+
+{% block content %}
+<div class="add-container">
+    <div class="add-header">
+        <h1 class="add-title">Add Song</h1>
+        <p class="add-subtitle">Enter a Deezer track ID to add to your library</p>
+    </div>
+
+    <div class="add-grid">
+        <!-- Fetch section -->
+        <div class="fetch-section">
+            <div class="form-group">
+                <label class="form-label" for="deezer-id">Deezer Track ID</label>
+                <div class="fetch-row">
+                    <input class="form-input" type="text" id="deezer-id" name="deezer_id"
+                        placeholder="e.g. 3135556" inputmode="numeric">
+                    <button type="button" class="btn btn-secondary" id="fetch-btn" onclick="fetchTrack()">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">search</span>
+                        Fetch
+                    </button>
+                </div>
+                <p class="form-hint">Find the ID in the Deezer track URL: deezer.com/track/<strong>3135556</strong></p>
+            </div>
+
+            <!-- Preview card (hidden until fetched) -->
+            <div class="preview-card" id="preview-card" style="display: none;">
+                <div class="preview-cover-wrapper">
+                    <img id="preview-cover" src="" alt="Album cover">
+                    <button type="button" class="preview-play-btn" id="preview-play-btn" onclick="togglePreview()" title="Play preview">
+                        <span class="material-symbols-outlined" id="play-icon">play_arrow</span>
+                    </button>
+                </div>
+                <div class="preview-info">
+                    <h3 class="preview-title" id="preview-title"></h3>
+                    <p class="preview-artist" id="preview-artist"></p>
+                    <p class="preview-album" id="preview-album"></p>
+                    <p class="preview-year" id="preview-year"></p>
+                </div>
+                <audio id="preview-audio" preload="none"></audio>
+            </div>
+        </div>
+
+        <!-- Tags & submit -->
+        <form class="add-form" id="add-form">
+            <div class="form-group">
+                <label class="form-label">Tags (press space or enter to add)</label>
+                <div class="tag-input-container" id="tag-container">
+                    <input type="text" id="tag-input-field" placeholder="chill, rock, favorites">
+                </div>
+                <input type="hidden" id="tags" name="tags">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">library_add</span>
+                    Add to Library
+                </button>
+            </div>
+
+            <div class="status-message" id="status-message"></div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const fetchBtn = document.getElementById('fetch-btn');
+    const previewCard = document.getElementById('preview-card');
+    const submitBtn = document.getElementById('submit-btn');
+    const deezerIdInput = document.getElementById('deezer-id');
+    const tagContainer = document.getElementById('tag-container');
+    const tagInputField = document.getElementById('tag-input-field');
+    const hiddenTagsInput = document.getElementById('tags');
+    const statusMessage = document.getElementById('status-message');
+    const previewAudio = document.getElementById('preview-audio');
+
+    let fetchedTrack = null;
+    let tags = [];
+
+    // --- Tag chip logic (from photo-gallery) ---
+    function updateTags() {
+        const existingChips = tagContainer.querySelectorAll('.tag-chip');
+        existingChips.forEach(chip => chip.remove());
+
+        tags.forEach((tag, index) => {
+            const chip = document.createElement('div');
+            chip.className = 'tag-chip';
+            chip.innerHTML = `
+                <span>${tag}</span>
+                <span class="tag-chip-remove" onclick="removeTag(${index})">&times;</span>
+            `;
+            tagContainer.insertBefore(chip, tagInputField);
+        });
+
+        hiddenTagsInput.value = tags.join(', ');
+    }
+
+    window.removeTag = function (index) {
+        tags.splice(index, 1);
+        updateTags();
+    };
+
+    tagInputField.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            const val = tagInputField.value.trim().replace(/,/g, '');
+            if (val && !tags.includes(val)) {
+                tags.push(val);
+                tagInputField.value = '';
+                updateTags();
+            }
+        } else if (e.key === 'Backspace' && tagInputField.value === '' && tags.length > 0) {
+            tags.pop();
+            updateTags();
+        }
+    });
+
+    tagContainer.addEventListener('click', () => tagInputField.focus());
+
+    // --- Fetch track from Deezer ---
+    async function fetchTrack() {
+        const id = deezerIdInput.value.trim();
+        if (!id) return;
+
+        fetchBtn.disabled = true;
+        fetchBtn.innerHTML = '<span class="material-symbols-outlined spin">progress_activity</span> Fetching...';
+        previewCard.style.display = 'none';
+        submitBtn.disabled = true;
+        statusMessage.textContent = '';
+        statusMessage.className = 'status-message';
+
+        try {
+            const resp = await fetch('/api/fetch-track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deezer_id: id })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Track not found');
+            }
+
+            fetchedTrack = await resp.json();
+
+            // Populate preview
+            document.getElementById('preview-cover').src = fetchedTrack.cover_url || '';
+            document.getElementById('preview-title').textContent = fetchedTrack.title;
+            document.getElementById('preview-artist').textContent = fetchedTrack.artist;
+            document.getElementById('preview-album').textContent = fetchedTrack.album;
+            document.getElementById('preview-year').textContent = fetchedTrack.release_year || '';
+
+            // Setup audio preview
+            if (fetchedTrack.preview_url) {
+                previewAudio.src = fetchedTrack.preview_url;
+                document.getElementById('preview-play-btn').style.display = 'flex';
+            } else {
+                document.getElementById('preview-play-btn').style.display = 'none';
+            }
+
+            previewCard.style.display = 'flex';
+            submitBtn.disabled = false;
+
+        } catch (err) {
+            statusMessage.textContent = err.message;
+            statusMessage.className = 'status-message error';
+        } finally {
+            fetchBtn.disabled = false;
+            fetchBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1.1rem;">search</span> Fetch';
+        }
+    }
+
+    // Allow enter in the ID field to trigger fetch
+    deezerIdInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            fetchTrack();
+        }
+    });
+
+    // --- Audio preview toggle ---
+    function togglePreview() {
+        const icon = document.getElementById('play-icon');
+        if (previewAudio.paused) {
+            previewAudio.play();
+            icon.textContent = 'pause';
+        } else {
+            previewAudio.pause();
+            icon.textContent = 'play_arrow';
+        }
+    }
+
+    previewAudio.addEventListener('ended', () => {
+        document.getElementById('play-icon').textContent = 'play_arrow';
+    });
+
+    // --- Submit ---
+    document.getElementById('add-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!fetchedTrack) return;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="material-symbols-outlined spin">progress_activity</span> Adding...';
+        statusMessage.textContent = '';
+        statusMessage.className = 'status-message';
+
+        try {
+            const resp = await fetch('/api/add-track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    deezer_id: fetchedTrack.deezer_id,
+                    tags: tags
+                })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Failed to add track');
+            }
+
+            statusMessage.textContent = `"${fetchedTrack.title}" added to library!`;
+            statusMessage.className = 'status-message success';
+
+            // Reset form
+            fetchedTrack = null;
+            tags = [];
+            updateTags();
+            deezerIdInput.value = '';
+            previewCard.style.display = 'none';
+            submitBtn.disabled = true;
+
+            // Stop audio
+            previewAudio.pause();
+            previewAudio.currentTime = 0;
+            document.getElementById('play-icon').textContent = 'play_arrow';
+
+        } catch (err) {
+            statusMessage.textContent = err.message;
+            statusMessage.className = 'status-message error';
+            submitBtn.disabled = false;
+        }
+
+        submitBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1.1rem;">library_add</span> Add to Library';
+    });
+</script>
+{% endblock %}

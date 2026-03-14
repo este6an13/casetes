@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Music Library{% endblock %}
+
+{% block header_controls %}
+<div id="search-form" class="search-form">
+    <div class="search-container">
+        <button type="button" id="search-toggle" class="nav-btn-circle nav-icon-btn mobile-only"
+            title="Search Tracks" onclick="toggleMobileSearch()">
+            <span class="material-symbols-outlined">search</span>
+        </button>
+        <input type="search" class="search-input" placeholder="Search songs..."
+            onkeydown="if(event.key==='Enter') event.preventDefault();"
+            oninput="handleSearchInput(this.value)">
+    </div>
+
+    <!-- Group by controls -->
+    <div class="group-controls">
+        <button type="button" class="nav-btn-circle nav-icon-btn" id="group-artist-btn"
+            title="Group by Artist" onclick="Library.groupBy('artist')">
+            <span class="material-symbols-outlined">person</span>
+        </button>
+        <button type="button" class="nav-btn-circle nav-icon-btn" id="group-year-btn"
+            title="Group by Year" onclick="Library.groupBy('year')">
+            <span class="material-symbols-outlined">calendar_month</span>
+        </button>
+        <button type="button" class="nav-btn-circle nav-icon-btn" id="group-tag-btn"
+            title="Group by Tag" onclick="Library.groupBy('tag')">
+            <span class="material-symbols-outlined">label</span>
+        </button>
+    </div>
+</div>
+<span class="nav-count" id="track-count"></span>
+{% endblock %}
+
+{% block content %}
+<div class="library-wrapper">
+    <div class="library-hero">
+        <p class="library-tagline">songs, collected.</p>
+        <div id="active-tag-indicator" class="active-tag-chip" style="display: none;">
+            <span id="active-tag-text"></span>
+            <button type="button" onclick="Library.clearTag()" class="clear-tag-btn"
+                title="Clear Filter">&times;</button>
+        </div>
+        <div id="active-group-indicator" class="active-tag-chip group-chip" style="display: none;">
+            <span class="material-symbols-outlined" style="font-size: 1rem; opacity: 0.7;" id="group-icon">person</span>
+            <span id="active-group-text"></span>
+            <button type="button" onclick="Library.groupBy('none')" class="clear-tag-btn"
+                title="Clear Grouping">&times;</button>
+        </div>
+    </div>
+
+    <div id="track-grid">
+        <!-- Loading state — replaced by library.js -->
+        <div class="loading-state">
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.__TRACKS = {{ tracks_json | safe }};
+</script>
+<script src="/static/js/library.js?v=1"></script>
+<script>
+    (function () {
+        function boot() {
+            Library.init(window.__TRACKS);
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+        } else {
+            boot();
+        }
+    })();
+
+    /* Search debounce */
+    let searchTimer = null;
+    function handleSearchInput(value) {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            if (typeof Library !== 'undefined') {
+                Library.search(value);
+            }
+        }, 300);
+    }
+
+    /* Mobile search toggle */
+    function toggleMobileSearch() {
+        const form = document.getElementById('search-form');
+        const input = form.querySelector('.search-input');
+        const isShowing = form.classList.toggle('show-search');
+        if (isShowing) input.focus();
+    }
+</script>
+{% endblock %}
