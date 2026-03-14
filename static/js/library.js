@@ -1,7 +1,7 @@
 /**
  * Library.js — Client-side rendering engine for the music library.
- * Handles grid rendering, search, tag filtering, grouping (artist / year / tag),
- * and track detail modal from an in-memory tracks array.
+ * Handles grid rendering, search, tag filtering, browse-mode categories
+ * (artist / year / tag / album), and track detail modal.
  */
 const Library = (function () {
     'use strict';
@@ -10,9 +10,10 @@ const Library = (function () {
     let currentTracks = [];
     let currentQuery = '';
     let currentTag = '';
-    let currentGroup = 'none'; // 'none' | 'artist' | 'year' | 'tag' | 'album'
-    let inlineAudio = null;    // currently playing inline audio element
-    let inlinePlayingId = null; // deezer_id of inline-playing track
+    let browseMode = 'none';     // 'none' | 'artist' | 'year' | 'tag' | 'album'
+    let browseFilter = null;     // { mode: 'artist', value: 'Daft Punk' } when drilled in
+    let inlineAudio = null;
+    let inlinePlayingId = null;
 
     /* ── Initialization ── */
     function init(tracks) {
@@ -20,15 +21,26 @@ const Library = (function () {
         applyFiltersAndRender();
     }
 
-    /* ── Filtering & Grouping Pipeline ── */
+    /* ── Filtering & Rendering Pipeline ── */
     function applyFiltersAndRender() {
         let filtered = allTracks.slice();
 
-        // Tag filter
+        // Tag filter (from tag chip click)
         if (currentTag) {
             filtered = filtered.filter(t =>
                 t.tags && t.tags.some(tag => tag.toLowerCase() === currentTag.toLowerCase())
             );
+        }
+
+        // Browse drill-in filter (e.g., artist = "Daft Punk")
+        if (browseFilter) {
+            filtered = filtered.filter(t => {
+                if (browseFilter.mode === 'artist') return t.artist === browseFilter.value;
+                if (browseFilter.mode === 'album') return t.album === browseFilter.value;
+                if (browseFilter.mode === 'year') return String(t.release_year || '') === browseFilter.value;
+                if (browseFilter.mode === 'tag') return t.tags && t.tags.includes(browseFilter.value);
+                return true;
+            });
         }
 
         // Search filter
@@ -46,12 +58,12 @@ const Library = (function () {
         filtered.sort((a, b) => (b.added_at || '').localeCompare(a.added_at || ''));
 
         currentTracks = filtered;
-        renderGrid(filtered);
+        renderTrackGrid(filtered);
         updateTrackCount(filtered.length);
     }
 
-    /* ── Grid Rendering ── */
-    function renderGrid(tracks) {
+    /* ── Track Grid Rendering ── */
+    function renderTrackGrid(tracks) {
         const container = document.getElementById('track-grid');
         if (!container) return;
 
@@ -70,86 +82,190 @@ const Library = (function () {
             return;
         }
 
-        // Build groups
-        const groups = buildGroups(tracks);
-        let html = '';
-
-        const groupKeys = Object.keys(groups);
-        groupKeys.forEach((key, gi) => {
-            const groupTracks = groups[key];
-
-            if (currentGroup !== 'none') {
-                html += '<div class="group-section">';
-                html += '<h2 class="group-header">' + escapeHtml(key) + ' <span style="font-size: 0.7em; font-family: var(--font-sans); font-weight: 300; color: var(--text-muted);">' + groupTracks.length + '</span></h2>';
+        let html = '<div class="track-grid">';
+        tracks.forEach((track, ti) => {
+            const delay = Math.min(ti * 0.04, 0.5);
+            html += '<div class="track-card skeleton-loading" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="Library.openDetail(\'' + escapeAttr(track.deezer_id) + '\')" role="button" tabindex="0" style="animation-delay: ' + delay + 's;">';
+            html += '<div class="track-cover-wrapper">';
+            if (track.cover) {
+                html += '<img class="track-cover" src="/' + escapeAttr(track.cover) + '" alt="' + escapeAttr(track.title) + '" loading="lazy" onload="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')">';
+            } else {
+                html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
             }
-
-            html += '<div class="track-grid">';
-            groupTracks.forEach((track, ti) => {
-                const delay = Math.min(ti * 0.04, 0.5);
-                html += '<div class="track-card skeleton-loading" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="Library.openDetail(\'' + escapeAttr(track.deezer_id) + '\')" role="button" tabindex="0" style="animation-delay: ' + delay + 's;">';
-                html += '<div class="track-cover-wrapper">';
-                if (track.cover) {
-                    html += '<img class="track-cover" src="/' + escapeAttr(track.cover) + '" alt="' + escapeAttr(track.title) + '" loading="lazy" onload="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')">';
-                } else {
-                    html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
-                }
-                html += '<div class="track-overlay"></div>';
-                // Inline play button
-                if (track.preview_url) {
-                    html += '<button class="card-play-btn" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="event.stopPropagation(); Library.toggleInlinePlay(\'' + escapeAttr(track.deezer_id) + '\', this)" title="Play preview">';
-                    html += '<span class="material-symbols-outlined">' + (inlinePlayingId === track.deezer_id ? 'pause' : 'play_arrow') + '</span>';
-                    html += '</button>';
-                }
-                html += '</div>';
-                html += '<div class="track-card-info">';
-                html += '<div class="track-card-title">' + escapeHtml(track.title) + '</div>';
-                html += '<div class="track-card-artist">' + escapeHtml(track.artist) + '</div>';
-                html += '</div></div>';
-            });
+            html += '<div class="track-overlay"></div>';
+            if (track.preview_url) {
+                html += '<button class="card-play-btn" data-deezer-id="' + escapeAttr(track.deezer_id) + '" onclick="event.stopPropagation(); Library.toggleInlinePlay(\'' + escapeAttr(track.deezer_id) + '\', this)" title="Play preview">';
+                html += '<span class="material-symbols-outlined">' + (inlinePlayingId === track.deezer_id ? 'pause' : 'play_arrow') + '</span>';
+                html += '</button>';
+            }
             html += '</div>';
-
-            if (currentGroup !== 'none') {
-                html += '</div>';
-            }
+            html += '<div class="track-card-info">';
+            html += '<div class="track-card-title">' + escapeHtml(track.title) + '</div>';
+            html += '<div class="track-card-artist">' + escapeHtml(track.artist) + '</div>';
+            html += '</div></div>';
         });
+        html += '</div>';
 
         container.innerHTML = html;
     }
 
-    function buildGroups(tracks) {
-        if (currentGroup === 'none') {
-            return { 'All': tracks };
-        }
+    /* ── Browse Mode (category cards like photo-gallery albums) ── */
+    function renderBrowseGrid(mode) {
+        const container = document.getElementById('track-grid');
+        if (!container) return;
 
-        const groups = {};
-        tracks.forEach(t => {
+        // Build category data from all tracks
+        const categories = {};
+        allTracks.forEach(t => {
             let keys = [];
-            if (currentGroup === 'artist') {
+            if (mode === 'artist') {
                 keys = [t.artist || 'Unknown'];
-            } else if (currentGroup === 'year') {
-                keys = [t.release_year ? String(t.release_year) : 'Unknown'];
-            } else if (currentGroup === 'album') {
+            } else if (mode === 'album') {
                 keys = [t.album || 'Unknown'];
-            } else if (currentGroup === 'tag') {
+            } else if (mode === 'year') {
+                keys = [t.release_year ? String(t.release_year) : 'Unknown'];
+            } else if (mode === 'tag') {
                 keys = (t.tags && t.tags.length > 0) ? t.tags : ['Untagged'];
             }
-            keys.forEach(k => {
-                if (!groups[k]) groups[k] = [];
-                groups[k].push(t);
+
+            keys.forEach(key => {
+                if (!categories[key]) {
+                    categories[key] = { name: key, count: 0, cover: null, newestDate: '' };
+                }
+                categories[key].count++;
+                // Use newest track's cover as the category cover
+                const date = t.added_at || '';
+                if (date > categories[key].newestDate) {
+                    categories[key].newestDate = date;
+                    categories[key].cover = t.cover;
+                }
             });
         });
 
-        // Sort group keys
-        const sortedKeys = Object.keys(groups).sort((a, b) => {
-            if (a === 'Unknown' || a === 'Untagged') return 1;
-            if (b === 'Unknown' || b === 'Untagged') return -1;
-            if (currentGroup === 'year') return parseInt(b) - parseInt(a);
-            return a.localeCompare(b);
+        // Sort categories
+        const sorted = Object.values(categories).sort((a, b) => {
+            if (a.name === 'Unknown' || a.name === 'Untagged') return 1;
+            if (b.name === 'Unknown' || b.name === 'Untagged') return -1;
+            if (mode === 'year') return parseInt(b.name) - parseInt(a.name);
+            return b.count - a.count; // Most songs first
         });
 
-        const sorted = {};
-        sortedKeys.forEach(k => sorted[k] = groups[k]);
-        return sorted;
+        if (sorted.length === 0) {
+            container.innerHTML =
+                '<div class="empty-state">' +
+                '  <p class="empty-icon">📁</p>' +
+                '  <p class="empty-title">Nothing here</p>' +
+                '  <p class="empty-hint">Add some songs to browse by ' + mode + '.</p>' +
+                '</div>';
+            return;
+        }
+
+        let html = '<div class="browse-grid">';
+        sorted.forEach((cat, i) => {
+            const delay = Math.min(i * 0.04, 0.5);
+            const escapedName = escapeAttr(cat.name.replace(/'/g, "\\'"));
+            html += '<div class="browse-card" onclick="Library.selectBrowseItem(\'' + escapedName + '\')" role="button" tabindex="0" style="animation-delay: ' + delay + 's;">';
+            html += '<div class="browse-cover-wrapper">';
+            if (cat.cover) {
+                html += '<img class="browse-cover" src="/' + escapeAttr(cat.cover) + '" alt="' + escapeAttr(cat.name) + '" loading="lazy">';
+            } else {
+                html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
+            }
+            html += '</div>';
+            html += '<div class="browse-card-info">';
+            html += '<div class="browse-card-name">' + escapeHtml(cat.name) + '</div>';
+            html += '<div class="browse-card-count">' + cat.count + ' song' + (cat.count !== 1 ? 's' : '') + '</div>';
+            html += '</div></div>';
+        });
+        html += '</div>';
+
+        container.innerHTML = html;
+        updateTrackCount(allTracks.length);
+    }
+
+    /* ── Browse Mode Toggle ── */
+    function groupBy(mode) {
+        // If clicking the same mode while browsing, exit browse mode
+        if (browseMode === mode && !browseFilter) {
+            exitBrowse();
+            return;
+        }
+
+        // If we have a filter active for this mode, clear it and show browse cards again
+        if (browseFilter && browseFilter.mode === mode) {
+            browseFilter = null;
+            clearFilterUI();
+        }
+
+        browseMode = mode;
+        browseFilter = null;
+
+        // Clear other filters
+        currentTag = '';
+        currentQuery = '';
+        const searchInput = document.querySelector('.search-input');
+        if (searchInput) searchInput.value = '';
+        clearTagUI();
+        clearFilterUI();
+
+        // Update button states
+        updateBrowseButtons(mode);
+
+        // Show browse indicator
+        const indicator = document.getElementById('active-group-indicator');
+        const text = document.getElementById('active-group-text');
+        const icon = document.getElementById('group-icon');
+        if (indicator && text) {
+            const labels = { artist: 'Artist', year: 'Year', tag: 'Tag', album: 'Album' };
+            const icons = { artist: 'person', year: 'calendar_month', tag: 'label', album: 'album' };
+            text.textContent = 'by ' + labels[mode];
+            if (icon) icon.textContent = icons[mode];
+            indicator.style.display = 'inline-flex';
+        }
+
+        renderBrowseGrid(mode);
+    }
+
+    function selectBrowseItem(value) {
+        browseFilter = { mode: browseMode, value: value };
+
+        // Show filter chip
+        const indicator = document.getElementById('active-tag-indicator');
+        const text = document.getElementById('active-tag-text');
+        if (indicator && text) {
+            text.textContent = value;
+            indicator.style.display = 'inline-flex';
+        }
+
+        applyFiltersAndRender();
+    }
+
+    function exitBrowse() {
+        browseMode = 'none';
+        browseFilter = null;
+        updateBrowseButtons('none');
+        clearFilterUI();
+
+        const groupIndicator = document.getElementById('active-group-indicator');
+        if (groupIndicator) groupIndicator.style.display = 'none';
+
+        applyFiltersAndRender();
+    }
+
+    function updateBrowseButtons(activeMode) {
+        ['artist', 'year', 'tag', 'album'].forEach(m => {
+            const btn = document.getElementById('group-' + m + '-btn');
+            if (btn) btn.classList.toggle('active', m === activeMode);
+        });
+    }
+
+    function clearFilterUI() {
+        const tagIndicator = document.getElementById('active-tag-indicator');
+        if (tagIndicator) tagIndicator.style.display = 'none';
+    }
+
+    function clearTagUI() {
+        clearFilterUI();
     }
 
     /* ── Track Detail Modal ── */
@@ -219,7 +335,6 @@ const Library = (function () {
         const icon = document.getElementById('detail-play-icon');
         if (!audio) return;
 
-        // Stop any inline audio first
         stopInlineAudio();
 
         if (audio.paused) {
@@ -237,7 +352,6 @@ const Library = (function () {
         if (inlineAudio) {
             inlineAudio.pause();
             inlineAudio.currentTime = 0;
-            // Reset icon on the old button
             const oldBtn = document.querySelector('.card-play-btn[data-deezer-id="' + inlinePlayingId + '"] .material-symbols-outlined');
             if (oldBtn) oldBtn.textContent = 'play_arrow';
             inlineAudio = null;
@@ -248,13 +362,11 @@ const Library = (function () {
     function toggleInlinePlay(deezerId, btn) {
         const icon = btn.querySelector('.material-symbols-outlined');
 
-        // If this track is already playing, stop it
         if (inlinePlayingId === deezerId && inlineAudio && !inlineAudio.paused) {
             stopInlineAudio();
             return;
         }
 
-        // Stop any other playing audio
         stopInlineAudio();
 
         const track = allTracks.find(t => t.deezer_id === deezerId);
@@ -280,7 +392,12 @@ const Library = (function () {
             if (resp.ok) {
                 allTracks = allTracks.filter(t => t.deezer_id !== deezerId);
                 closeModal();
-                applyFiltersAndRender();
+                // If in browse view after delete, re-render the browse grid
+                if (browseMode !== 'none' && !browseFilter) {
+                    renderBrowseGrid(browseMode);
+                } else {
+                    applyFiltersAndRender();
+                }
             } else {
                 alert('Failed to remove track.');
             }
@@ -292,18 +409,24 @@ const Library = (function () {
     /* ── Search ── */
     function search(query) {
         currentQuery = query.trim();
+        // If searching, exit browse mode but keep filter if drilled in
+        if (currentQuery && browseMode !== 'none' && !browseFilter) {
+            exitBrowse();
+        }
         applyFiltersAndRender();
     }
 
-    /* ── Tag Filter ── */
+    /* ── Tag Filter (from detail modal tag click) ── */
     function setTag(tagName) {
+        // Exit browse mode
+        if (browseMode !== 'none') exitBrowse();
+
         currentTag = tagName;
         currentQuery = '';
 
         const searchInput = document.querySelector('.search-input');
         if (searchInput) searchInput.value = '';
 
-        // Show tag chip
         const indicator = document.getElementById('active-tag-indicator');
         const text = document.getElementById('active-tag-text');
         if (indicator && text) {
@@ -315,43 +438,24 @@ const Library = (function () {
     }
 
     function clearTag() {
-        if (!currentTag) return;
-        currentTag = '';
-
-        const indicator = document.getElementById('active-tag-indicator');
-        if (indicator) indicator.style.display = 'none';
-
-        applyFiltersAndRender();
-    }
-
-    /* ── Grouping ── */
-    function groupBy(mode) {
-        if (currentGroup === mode) mode = 'none';
-        currentGroup = mode;
-
-        // Update button states
-        ['artist', 'year', 'tag', 'album'].forEach(m => {
-            const btn = document.getElementById('group-' + m + '-btn');
-            if (btn) btn.classList.toggle('active', m === mode);
-        });
-
-        // Show/hide group indicator
-        const indicator = document.getElementById('active-group-indicator');
-        const text = document.getElementById('active-group-text');
-        const icon = document.getElementById('group-icon');
-
-        if (indicator && text) {
-            if (mode !== 'none') {
-                const labels = { artist: 'Artist', year: 'Year', tag: 'Tag', album: 'Album' };
-                const icons = { artist: 'person', year: 'calendar_month', tag: 'label', album: 'album' };
-                text.textContent = 'by ' + labels[mode];
-                if (icon) icon.textContent = icons[mode];
-                indicator.style.display = 'inline-flex';
-            } else {
-                indicator.style.display = 'none';
-            }
+        // If we're in a browse drill-in, go back to browse cards
+        if (browseFilter) {
+            browseFilter = null;
+            clearFilterUI();
+            renderBrowseGrid(browseMode);
+            return;
         }
 
+        // If in browse mode top-level, exit browse
+        if (browseMode !== 'none') {
+            exitBrowse();
+            return;
+        }
+
+        // Normal tag clear
+        if (!currentTag) return;
+        currentTag = '';
+        clearFilterUI();
         applyFiltersAndRender();
     }
 
@@ -383,6 +487,7 @@ const Library = (function () {
         setTag,
         clearTag,
         groupBy,
+        selectBrowseItem,
         openDetail,
         toggleDetailPreview,
         toggleInlinePlay,

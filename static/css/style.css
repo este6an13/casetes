@@ -405,6 +405,78 @@ main {
     border-bottom: 1px solid var(--border);
 }
 
+/* ── Browse Grid (category cards) ── */
+.browse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.25rem;
+}
+
+.browse-card {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    transition: all var(--transition);
+    animation: fadeInUp 0.4s ease both;
+}
+
+.browse-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-hover);
+}
+
+.browse-cover-wrapper {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: var(--bg-secondary);
+}
+
+.browse-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform var(--transition-slow);
+    filter: brightness(0.7);
+}
+
+.browse-card:hover .browse-cover {
+    transform: scale(1.08);
+    filter: brightness(0.85);
+}
+
+.browse-card-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1rem;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.3) 60%, transparent 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.browse-card-name {
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-bottom: 0.15rem;
+}
+
+.browse-card-count {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 300;
+    letter-spacing: 0.03em;
+}
+
 /* ── Empty State ── */
 .empty-state {
     text-align: center;
