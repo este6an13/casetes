@@ -5,11 +5,41 @@ Fetches track metadata from Deezer's public API and downloads cover art.
 """
 
 import httpx
+import time
+import asyncio
 from pathlib import Path
 
 
 DEEZER_API_BASE = "https://api.deezer.com"
 COVERS_DIR = Path("data/covers")
+
+class RateLimiter:
+    """Enforces a limit of exactly max_requests per window_seconds."""
+    def __init__(self, max_requests: int, window_seconds: float):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.request_timestamps = []
+        self._lock = asyncio.Lock()
+
+    async def acquire(self):
+        async with self._lock:
+            while True:
+                now = time.time()
+                # Remove timestamps older than the window
+                self.request_timestamps = [t for t in self.request_timestamps if now - t < self.window_seconds]
+                
+                if len(self.request_timestamps) < self.max_requests:
+                    self.request_timestamps.append(now)
+                    return
+                
+                # If we're at the limit, sleep until the oldest request falls out of the window
+                oldest = self.request_timestamps[0]
+                sleep_time = self.window_seconds - (now - oldest)
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+
+# 50 requests per 300 seconds (5 minutes)
+deezer_limiter = RateLimiter(max_requests=50, window_seconds=300)
 
 
 async def get_deezer_track(deezer_id: str) -> dict | None:
@@ -20,6 +50,8 @@ async def get_deezer_track(deezer_id: str) -> dict | None:
     or None if the track wasn't found.
     """
     url = f"{DEEZER_API_BASE}/track/{deezer_id}"
+    await deezer_limiter.acquire()
+    
     async with httpx.AsyncClient() as client:
         resp = await client.get(url)
         if resp.status_code != 200:

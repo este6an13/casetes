@@ -63,6 +63,36 @@
             <div class="status-message" id="status-message"></div>
         </form>
     </div>
+
+    <!-- Import section -->
+    <div class="import-section">
+        <h2 class="add-title" style="font-size: 1.5rem; margin-bottom: 0.5rem;">Import Collection</h2>
+        <p class="add-subtitle" style="margin-bottom: 1.5rem;">Upload a .csv, .json, or .xlsx file exported from your library.</p>
+        
+        <form id="import-form" class="add-form">
+            <div class="form-group">
+                <input type="file" id="import-file" accept=".csv,.json,.xlsx" class="form-input" style="padding: 0.5rem;">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-secondary" id="import-btn" disabled>
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">upload_file</span>
+                    Start Import
+                </button>
+            </div>
+        </form>
+
+        <div id="import-progress-container" style="display: none; margin-top: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span id="import-status-text" style="font-size: 0.9rem; color: var(--text-secondary);">Preparing import...</span>
+                <span id="import-count-text" style="font-size: 0.9rem; font-weight: 500;">0 / 0</span>
+            </div>
+            <div class="progress-bar-bg" style="width: 100%; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; margin-bottom: 1rem;">
+                <div id="import-progress-fill" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
+            </div>
+            <div id="import-log" style="max-height: 150px; overflow-y: auto; font-size: 0.8rem; color: var(--text-muted); padding: 0.5rem; background: var(--bg-glass); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -244,6 +274,116 @@
         }
 
         submitBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1.1rem;">library_add</span> Add to Library';
+    });
+
+    // --- Import feature ---
+    const importForm = document.getElementById('import-form');
+    const importFile = document.getElementById('import-file');
+    const importBtn = document.getElementById('import-btn');
+    const progressContainer = document.getElementById('import-progress-container');
+    const statusText = document.getElementById('import-status-text');
+    const countText = document.getElementById('import-count-text');
+    const progressFill = document.getElementById('import-progress-fill');
+    const importLog = document.getElementById('import-log');
+
+    importFile.addEventListener('change', () => {
+        importBtn.disabled = !importFile.files.length;
+    });
+
+    function logImport(msg, isError = false) {
+        const div = document.createElement('div');
+        div.textContent = msg;
+        if (isError) div.style.color = 'var(--error)';
+        importLog.prepend(div);
+    }
+
+    importForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!importFile.files.length) return;
+
+        const file = importFile.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        importBtn.disabled = true;
+        importBtn.innerHTML = '<span class="material-symbols-outlined spin">progress_activity</span> Importing...';
+        importFile.disabled = true;
+        
+        progressContainer.style.display = 'block';
+        importLog.innerHTML = '';
+        progressFill.style.width = '0%';
+        statusText.textContent = 'Uploading file...';
+        countText.textContent = '0 / 0';
+        
+        try {
+            const resp = await fetch('/api/import', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Import failed');
+            }
+
+            // SSE processing
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                
+                // Keep the last incomplete line in the buffer
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const dataStr = line.substring(6);
+                        try {
+                            const data = JSON.parse(dataStr);
+                            
+                            if (data.status === 'start') {
+                                statusText.textContent = 'Fetching metadata & covers...';
+                                countText.textContent = `0 / ${data.total}`;
+                                if (data.total === 0) {
+                                    logImport("No new tracks found to import. They might already be in your library.");
+                                } else {
+                                    logImport(`Found ${data.total} new tracks to queue. Respecting rate limits...`);
+                                }
+                            } else if (data.status === 'progress') {
+                                const pct = (data.current / data.total) * 100;
+                                progressFill.style.width = `${pct}%`;
+                                countText.textContent = `${data.current} / ${data.total}`;
+                                logImport(`[SUCCESS] Added: ${data.track}`);
+                            } else if (data.status === 'error') {
+                                const pct = (data.current / data.total) * 100;
+                                progressFill.style.width = `${pct}%`;
+                                countText.textContent = `${data.current} / ${data.total}`;
+                                logImport(`[ERROR] ${data.message}`, true);
+                            } else if (data.status === 'done') {
+                                statusText.textContent = 'Import Complete!';
+                                statusText.style.color = 'var(--accent)';
+                                logImport(`\nFinished! Successfully added ${data.added} out of ${data.total} tracks.`);
+                                importBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1.1rem;">check_circle</span> Done';
+                            }
+                        } catch (err) {
+                            console.error("Parse error on SSE line", line, err);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            logImport(`[FATAL ERROR] ${err.message}`, true);
+            statusText.textContent = 'Import failed';
+            statusText.style.color = 'var(--error)';
+        } finally {
+            importFile.disabled = false;
+        }
     });
 </script>
 {% endblock %}

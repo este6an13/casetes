@@ -14,10 +14,10 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 import csv
 import io
 import openpyxl
@@ -187,6 +187,116 @@ async def update_tags(deezer_id: str, body: UpdateTagsRequest):
 
     _write_library(library)
     return {"message": "tags updated", "tags": library[0]["tags"] if library else []}
+
+@app.post("/api/import")
+async def import_library(file: UploadFile = File(...)):
+    """Import tracks from CSV, JSON, or XLSX and fetch metadata with SSE progress."""
+    raw_content = await file.read()
+    content: bytes = raw_content if isinstance(raw_content, bytes) else raw_content.encode('utf-8')
+    filename = file.filename.lower() if file.filename else "unknown"
+    
+    tracks_to_import = []
+    
+    try:
+        if filename.endswith(".json"):
+            data = json.loads(content)
+            for item in data:
+                if "deezer_id" in item or "Deezer ID" in item:
+                    did = str(item.get("deezer_id") or item.get("Deezer ID"))
+                    tags = item.get("tags", []) if isinstance(item.get("tags"), list) else [t.strip() for t in str(item.get("tags", "")).split(",") if t.strip()]
+                    tracks_to_import.append({"deezer_id": did, "tags": tags})
+        
+        elif filename.endswith(".csv"):
+            reader = csv.DictReader(io.StringIO(content.decode("utf-8")))
+            for row in reader:
+                # Support "deezer_id" or "Deezer ID"
+                did_key = next((k for k in row.keys() if k and k.lower() in ["deezer_id", "deezer id"]), None)
+                if did_key and row[did_key]:
+                    tag_key = next((k for k in row.keys() if k and k.lower() == "tags"), None)
+                    tags = [t.strip() for t in row[tag_key].split(",")] if tag_key and row[tag_key] else []
+                    tracks_to_import.append({"deezer_id": str(row[did_key]), "tags": tags})
+                    
+        elif filename.endswith(".xlsx"):
+            wb = openpyxl.load_workbook(filename=io.BytesIO(content), data_only=True)
+            ws = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+            if len(rows) > 0:
+                headers = [str(cell).lower() if cell is not None else "" for cell in rows[0]]
+                did_idx = -1
+                tag_idx = -1
+                for i, h in enumerate(headers):
+                    if h in ["deezer_id", "deezer id"]: did_idx = i
+                    elif h == "tags": tag_idx = i
+                
+                if did_idx != -1:
+                    for row in rows[1:]:
+                        did = str(row[did_idx]) if row[did_idx] is not None else ""
+                        if did and did.lower() != "none" and did.strip():
+                            tags = []
+                            if tag_idx != -1 and row[tag_idx] is not None:
+                                tags = [t.strip() for t in str(row[tag_idx]).split(",")]
+                            tracks_to_import.append({"deezer_id": did.strip(), "tags": tags})
+                            
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format")
+            
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error parsing file: {str(e)}")
+
+    # Deduplicate against current library
+    library = _read_library()
+    existing_ids = {str(t["deezer_id"]) for t in library}
+    
+    unique_imports = []
+    seen_import_ids = set()
+    for t in tracks_to_import:
+        if t["deezer_id"] not in existing_ids and t["deezer_id"] not in seen_import_ids:
+            unique_imports.append(t)
+            seen_import_ids.add(t["deezer_id"])
+
+    async def import_generator():
+        # Start SSE format
+        yield f"data: {json.dumps({'status': 'start', 'total': len(unique_imports)})}\n\n"
+        
+        success_count = 0
+        current_library = _read_library()
+        
+        for i, track_req in enumerate(unique_imports):
+            did = track_req["deezer_id"]
+            tags = track_req["tags"]
+            
+            try:
+                # Rate limiter is called inside get_deezer_track!
+                track = await get_deezer_track(did)
+                if track:
+                    cover_path = await download_cover(track["cover_url"], did)
+                    
+                    entry = {
+                        "deezer_id": track["deezer_id"],
+                        "title": track["title"],
+                        "artist": track["artist"],
+                        "album": track["album"],
+                        "release_year": track["release_year"],
+                        "cover": cover_path,
+                        "duration": track.get("duration", 0),
+                        "preview_url": track.get("preview_url", ""),
+                        "tags": tags,
+                        "added_at": datetime.utcnow().isoformat(),
+                        "isrc": track.get("isrc")
+                    }
+                    current_library.append(entry)
+                    _write_library(current_library)
+                    success_count += 1
+                    
+                    yield f"data: {json.dumps({'status': 'progress', 'current': i + 1, 'total': len(unique_imports), 'track': track['title']})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'status': 'error', 'current': i + 1, 'total': len(unique_imports), 'message': f'Deezer ID {did} not found'})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'status': 'error', 'current': i + 1, 'total': len(unique_imports), 'message': str(e)})}\n\n"
+                
+        yield f"data: {json.dumps({'status': 'done', 'added': success_count, 'total': len(unique_imports)})}\n\n"
+
+    return StreamingResponse(import_generator(), media_type="text/event-stream")
 
 
 @app.get("/api/export/{fmt}")
