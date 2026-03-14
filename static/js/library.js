@@ -54,8 +54,13 @@ const Library = (function () {
             );
         }
 
-        // Sort by added_at descending (newest first)
-        filtered.sort((a, b) => (b.added_at || '').localeCompare(a.added_at || ''));
+        // Shuffle tracks randomly (Fisher-Yates)
+        for (let i = filtered.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const temp = filtered[i];
+            filtered[i] = filtered[j];
+            filtered[j] = temp;
+        }
 
         currentTracks = filtered;
         renderTrackGrid(filtered);
