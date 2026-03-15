@@ -377,11 +377,13 @@ const Library = (function () {
         html += '</div>';
 
         html += '<div class="detail-links" style="margin-top: auto; border-top: 1px solid var(--border-hover); padding-top: 0.8rem; justify-content: space-between;">';
-        html += '<button class="detail-link" onclick="event.stopPropagation(); Library.refetchTrack(\'' + escapeAttr(track.deezer_id) + '\')" title="Refetch Data" style="color: var(--text-primary);">';
-        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">sync</span><span class="detail-link-text">Refetch</span></button>';
+        if (window.__ADMIN_MODE) {
+            html += '<button class="detail-link" onclick="event.stopPropagation(); Library.refetchTrack(\'' + escapeAttr(track.deezer_id) + '\')" title="Refetch Data" style="color: var(--text-primary);">';
+            html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">sync</span><span class="detail-link-text">Refetch</span></button>';
 
-        html += '<button class="detail-delete" onclick="event.stopPropagation(); Library.deleteTrack(\'' + escapeAttr(track.deezer_id) + '\')" title="Remove from Library">';
-        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">delete</span><span class="detail-link-text">Remove</span></button>';
+            html += '<button class="detail-delete" onclick="event.stopPropagation(); Library.deleteTrack(\'' + escapeAttr(track.deezer_id) + '\')" title="Remove from Library">';
+            html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">delete</span><span class="detail-link-text">Remove</span></button>';
+        }
         html += '</div>';
 
         html += '</div></div>';
@@ -680,8 +682,10 @@ const Library = (function () {
             });
         }
         
-        // Always show the edit button
-        html += '<button class="detail-tag detail-tag-edit" onclick="event.stopPropagation(); Library.toggleEditTags(\'' + escapeAttr(track.deezer_id) + '\')" title="Edit tags" style="padding: 0.2rem 0.5rem; background: var(--bg-hover);"><span class="material-symbols-outlined" style="font-size: 1.1rem; vertical-align: middle;">edit</span></button>';
+        // Only show edit button if in Admin Mode
+        if (window.__ADMIN_MODE) {
+            html += '<button class="detail-tag detail-tag-edit" onclick="event.stopPropagation(); Library.toggleEditTags(\'' + escapeAttr(track.deezer_id) + '\')" title="Edit tags" style="padding: 0.2rem 0.5rem; background: var(--bg-hover);"><span class="material-symbols-outlined" style="font-size: 1.1rem; vertical-align: middle;">edit</span></button>';
+        }
         html += '</div>';
         return html;
     }

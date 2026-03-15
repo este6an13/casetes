@@ -22,6 +22,7 @@
             <a href="/" class="site-logo">&#9835; library</a>
             <nav class="site-nav">
                 {% block header_controls %}{% endblock %}
+                {% if admin_mode == True %}
                 <div class="nav-dropdown">
                     <button class="nav-link nav-dropdown-btn"
                         onclick="document.getElementById('export-menu').classList.toggle('active')">
@@ -38,6 +39,7 @@
                     <span class="material-symbols-outlined">add_circle</span>
                     <span class="nav-link-text">add</span>
                 </a>
+                {% endif %}
             </nav>
         </div>
     </header>

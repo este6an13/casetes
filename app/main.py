@@ -17,13 +17,18 @@ from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse, RedirectResponse
 import csv
 import io
+import os
 import openpyxl
+from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from .music_service import get_deezer_track, download_cover
+
+load_dotenv()
+ADMIN_MODE = os.getenv("ADMIN_MODE", "false").lower() == "true"
 
 app = FastAPI(title="Music Library")
 
@@ -82,13 +87,16 @@ async def library_page(request: Request):
     return templates.TemplateResponse("library.html", {
         "request": request,
         "tracks_json": tracks_json,
+        "admin_mode": ADMIN_MODE,
     })
 
 
 @app.get("/add", response_class=HTMLResponse)
 async def add_page(request: Request):
     """Add song page."""
-    return templates.TemplateResponse("add.html", {"request": request})
+    if not ADMIN_MODE:
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse("add.html", {"request": request, "admin_mode": ADMIN_MODE})
 
 
 class FetchTrackRequest(BaseModel):
@@ -112,6 +120,8 @@ class AddTrackRequest(BaseModel):
 @app.post("/api/add-track")
 async def add_track(body: AddTrackRequest):
     """Fetch metadata from Deezer, download cover, and save to library."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
     library = _read_library()
 
     # Check for duplicates
@@ -149,6 +159,8 @@ async def add_track(body: AddTrackRequest):
 @app.delete("/api/track/{deezer_id}")
 async def delete_track(deezer_id: str):
     """Remove a track from the library."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
     library = _read_library()
     new_library = [t for t in library if str(t["deezer_id"]) != deezer_id]
 
@@ -170,6 +182,8 @@ async def delete_track(deezer_id: str):
 @app.post("/api/track/{deezer_id}/refetch")
 async def refetch_track(deezer_id: str):
     """Refetch track metadata and cover from Deezer."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
     library = _read_library()
 
     # Find the track
@@ -220,6 +234,8 @@ class UpdateTagsRequest(BaseModel):
 @app.patch("/api/track/{deezer_id}/tags")
 async def update_tags(deezer_id: str, body: UpdateTagsRequest):
     """Update tags for a track."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
     library = _read_library()
     found = False
     for track in library:
@@ -237,6 +253,8 @@ async def update_tags(deezer_id: str, body: UpdateTagsRequest):
 @app.post("/api/import")
 async def import_library(file: UploadFile = File(...)):
     """Import tracks from CSV, JSON, or XLSX and fetch metadata with SSE progress."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
     raw_content = await file.read()
     content: bytes = raw_content if isinstance(raw_content, bytes) else raw_content.encode('utf-8')
     filename = file.filename.lower() if file.filename else "unknown"

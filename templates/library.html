@@ -126,8 +126,9 @@
 
 <script>
     window.__TRACKS = {{ tracks_json | safe }};
+    window.__ADMIN_MODE = {% if admin_mode == True %}true{% else %} false{% endif %};
 </script>
-<script src="/static/js/library.js?v=7"></script>
+<script src="/static/js/library.js?v=8"></script>
 <script>
     (function () {
         function boot() {
