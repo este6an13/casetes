@@ -77,9 +77,9 @@ async def get_deezer_track(deezer_id: str) -> dict | None:
         "artist": data.get("artist", {}).get("name", "Unknown"),
         "album": data.get("album", {}).get("title", "Unknown"),
         "release_year": release_year,
-        "cover_url": data.get("album", {}).get("cover_xl")
+        "cover_url": data.get("album", {}).get("cover_medium")
                      or data.get("album", {}).get("cover_big")
-                     or data.get("album", {}).get("cover_medium", ""),
+                     or data.get("album", {}).get("cover_xl", ""),
         "duration": data.get("duration", 0),
         "preview_url": data.get("preview", ""),
         "isrc": data.get("isrc"),

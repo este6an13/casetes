@@ -374,6 +374,11 @@ const Library = (function () {
 
         html += '<a href="https://music.youtube.com/search?q=' + appleQuery + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on YouTube Music">';
         html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">play_circle</span><span class="detail-link-text">YouTube</span></a>';
+        html += '</div>';
+
+        html += '<div class="detail-links" style="margin-top: auto; border-top: 1px solid var(--border-hover); padding-top: 0.8rem; justify-content: space-between;">';
+        html += '<button class="detail-link" onclick="event.stopPropagation(); Library.refetchTrack(\'' + escapeAttr(track.deezer_id) + '\')" title="Refetch Data" style="color: var(--text-primary);">';
+        html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">sync</span><span class="detail-link-text">Refetch</span></button>';
 
         html += '<button class="detail-delete" onclick="event.stopPropagation(); Library.deleteTrack(\'' + escapeAttr(track.deezer_id) + '\')" title="Remove from Library">';
         html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">delete</span><span class="detail-link-text">Remove</span></button>';
@@ -634,6 +639,35 @@ const Library = (function () {
             }
         } catch (e) {
             alert('Error: ' + e.message);
+        }
+    }
+
+    async function refetchTrack(deezerId) {
+        try {
+            const resp = await fetch('/api/track/' + deezerId + '/refetch', { method: 'POST' });
+            if (resp.ok) {
+                const data = await resp.json();
+                const updatedTrack = data.track;
+                
+                // Update track in allTracks and currentTracks
+                allTracks = allTracks.map(t => t.deezer_id === deezerId ? updatedTrack : t);
+                currentTracks = currentTracks.map(t => t.deezer_id === deezerId ? updatedTrack : t);
+
+                // Update detail modal UI
+                openDetail(deezerId);
+                
+                // Refresh grid to reflect potentially new cover
+                if (browseMode !== 'none' || browseFilter) {
+                    applyFiltersAndRender();
+                } else {
+                    renderTrackGrid(currentTracks);
+                }
+            } else {
+                const errorData = await resp.json();
+                alert('Failed to refetch data: ' + (errorData.detail || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error refetching: ' + e.message);
         }
     }
 
@@ -1175,6 +1209,7 @@ const Library = (function () {
         playPrevRadioTrack,
         toggleInlinePlay,
         deleteTrack,
+        refetchTrack,
         toggleEditTags,
         removeEditTag,
         cancelEditTags,

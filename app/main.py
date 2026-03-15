@@ -167,6 +167,52 @@ async def delete_track(deezer_id: str):
     return {"message": "deleted"}
 
 
+@app.post("/api/track/{deezer_id}/refetch")
+async def refetch_track(deezer_id: str):
+    """Refetch track metadata and cover from Deezer."""
+    library = _read_library()
+
+    # Find the track
+    existing_track_idx = -1
+    for i, t in enumerate(library):
+        if str(t["deezer_id"]) == deezer_id:
+            existing_track_idx = i
+            break
+            
+    if existing_track_idx == -1:
+        raise HTTPException(status_code=404, detail="Track not found in library")
+
+    existing_track = library[existing_track_idx]
+
+    # Fetch new metadata
+    new_data = await get_deezer_track(deezer_id)
+    if not new_data:
+        raise HTTPException(status_code=404, detail="Track not found on Deezer")
+
+    # Download new cover
+    new_cover_path = await download_cover(new_data["cover_url"], deezer_id)
+    
+    # Merge data (keep tags and added_at)
+    updated_entry = {
+        "deezer_id": new_data["deezer_id"],
+        "title": new_data["title"],
+        "artist": new_data["artist"],
+        "album": new_data["album"],
+        "release_year": new_data["release_year"],
+        "cover": new_cover_path or existing_track.get("cover"),
+        "duration": new_data.get("duration", 0),
+        "preview_url": new_data.get("preview_url", ""),
+        "tags": existing_track.get("tags", []),
+        "added_at": existing_track.get("added_at"),
+        "isrc": new_data.get("isrc")
+    }
+
+    library[existing_track_idx] = updated_entry
+    _write_library(library)
+
+    return {"message": "success", "track": updated_entry}
+
+
 class UpdateTagsRequest(BaseModel):
     tags: list[str]
 
