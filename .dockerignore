@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+data/
+music_library.egg-info/
+README.md
+deploy_gcp.md
