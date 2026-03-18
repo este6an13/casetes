@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, Response, StreamingResponse, Redirec
 import csv
 import io
 import os
+import subprocess
 import openpyxl
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -361,6 +362,36 @@ async def import_library(file: UploadFile = File(...)):
         yield f"data: {json.dumps({'status': 'done', 'added': success_count, 'total': len(unique_imports)})}\n\n"
 
     return StreamingResponse(import_generator(), media_type="text/event-stream")
+
+
+@app.post("/api/sync")
+async def sync_database():
+    """Sync the database to Google Cloud Storage (admin only)."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    data_bucket = os.getenv("GCP_DATA_BUCKET_NAME")
+    if not data_bucket:
+        raise HTTPException(status_code=500, detail="GCP_DATA_BUCKET_NAME not set in .env")
+        
+    data_dir = Path("data").resolve()
+    if not data_dir.exists():
+        raise HTTPException(status_code=500, detail="Local 'data' directory not found")
+        
+    cmd = [
+        "gsutil", "-m", "rsync", "-r",
+        str(data_dir),
+        f"gs://{data_bucket}"
+    ]
+    
+    try:
+        is_windows = os.name == 'nt'
+        result = subprocess.run(cmd, check=True, shell=is_windows, capture_output=True, text=True)
+        return {"message": "Sync completed successfully\n" + result.stdout[:500]}
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed with exit code {e.returncode}: {e.stderr}")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Error: 'gsutil' command not found. Please ensure Google Cloud CLI is installed.")
 
 
 @app.get("/api/export/{fmt}")

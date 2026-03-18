@@ -1182,6 +1182,42 @@ const Library = (function () {
         }
     }
 
+    async function syncDatabase() {
+        if (!confirm('Sync local data to Google Cloud Storage?')) return;
+        
+        const btn = document.getElementById('sync-db-btn');
+        const icon = document.getElementById('sync-icon');
+        const textSpan = btn ? btn.querySelector('.nav-link-text') : null;
+        const oldText = textSpan ? textSpan.textContent : 'sync';
+        let originalIcon = 'cloud_sync';
+        
+        if (textSpan) textSpan.textContent = 'syncing...';
+        if (icon) {
+            originalIcon = icon.textContent;
+            icon.textContent = 'sync';
+            icon.style.animation = 'spin 1s linear infinite';
+        }
+        
+        try {
+            const resp = await fetch('/api/sync', { method: 'POST' });
+            if (resp.ok) {
+                const data = await resp.json();
+                alert(data.message);
+            } else {
+                const errorData = await resp.json();
+                alert('Failed to sync: ' + (errorData.detail || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error syncing: ' + e.message);
+        } finally {
+            if (textSpan) textSpan.textContent = oldText;
+            if (icon) {
+                icon.textContent = originalIcon;
+                icon.style.animation = 'none';
+            }
+        }
+    }
+
     /* ── Helpers ── */
     function escapeHtml(str) {
         if (!str) return '';
@@ -1224,6 +1260,7 @@ const Library = (function () {
         exportPlaylist,
         openRandomPlaylistModal,
         addRandomMixArtist,
-        generateRandomPlaylist
+        generateRandomPlaylist,
+        syncDatabase
     };
 })();
