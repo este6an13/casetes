@@ -64,6 +64,15 @@ def _write_library(tracks: list[dict]):
     LIBRARY_FILE.write_text(json.dumps(tracks, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+# --- Middleware ---
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/covers/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
+
 # --- Startup ---
 @app.on_event("startup")
 async def startup_event():
@@ -384,9 +393,16 @@ async def sync_database():
         f"gs://{data_bucket}"
     ]
     
+    meta_cmd = [
+        "gsutil", "-m", "setmeta", "-h", "Cache-Control:public, max-age=31536000, immutable",
+        f"gs://{data_bucket}/covers/*.jpg"
+    ]
+    
     try:
         is_windows = os.name == 'nt'
         result = subprocess.run(cmd, check=True, shell=is_windows, capture_output=True, text=True)
+        # Attempt to set Cache-Control on all .jpg items in covers bucket
+        subprocess.run(meta_cmd, shell=is_windows, capture_output=True, text=True)
         return {"message": "Sync completed successfully\n" + result.stdout[:500]}
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"Sync failed with exit code {e.returncode}: {e.stderr}")

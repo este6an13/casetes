@@ -39,11 +39,20 @@ def main():
         str(data_dir),
         f"gs://{data_bucket}"
     ]
+    
+    meta_cmd = [
+        "gsutil", "-m", "setmeta", "-h", "Cache-Control:public, max-age=31536000, immutable",
+        f"gs://{data_bucket}/covers/*.jpg"
+    ]
 
     try:
         # Run the command and stream output to terminal
         is_windows = os.name == 'nt'
         subprocess.run(cmd, check=True, shell=is_windows)
+        
+        print(f"\nApplying cache headers to gs://{data_bucket}/covers/*.jpg...")
+        subprocess.run(meta_cmd, shell=is_windows)
+        
         print("\nSync completed successfully!")
     except subprocess.CalledProcessError as e:
         print(f"\nSync failed with exit code {e.returncode}")
