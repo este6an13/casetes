@@ -317,8 +317,9 @@ const Library = (function () {
             html += '<img class="detail-cover" src="/' + Utils.escapeAttr(track.cover) + '" alt="' + Utils.escapeAttr(track.title) + '">';
         }
         if (track.preview_url) {
-            html += '<button class="detail-play-btn" onclick="Library.toggleDetailPreview()" title="Play preview">';
-            html += '<span class="material-symbols-outlined" id="detail-play-icon">play_arrow</span>';
+            html += '<button class="detail-play-btn" data-deezer-id="' + Utils.escapeAttr(track.deezer_id) + '" onclick="Library.toggleDetailPreview(\'' + Utils.escapeAttr(track.deezer_id) + '\')" title="Play preview">';
+            const isThisTrackPlaying = (AudioPlayer.getCurrentPlayingId() === track.deezer_id && AudioPlayer.isPlaying());
+            html += '<span class="material-symbols-outlined" id="detail-play-icon">' + (isThisTrackPlaying ? 'pause' : 'play_arrow') + '</span>';
             html += '</button>';
         }
         html += '</div>';
@@ -672,7 +673,7 @@ const Library = (function () {
         openDetail,
         openRandomSong,
         // Delegate to AudioPlayer
-        toggleDetailPreview: function () { AudioPlayer.toggleDetailPreview(); },
+        toggleDetailPreview: function (id) { AudioPlayer.toggleDetailPreview(id); },
         toggleGlobalPlay: function () { AudioPlayer.toggleGlobalPlay(); },
         stopGlobalAudio: function () { AudioPlayer.stopGlobalAudio(); },
         startRadioMode: function () { AudioPlayer.startRadioMode(); },

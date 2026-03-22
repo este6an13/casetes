@@ -175,9 +175,14 @@ const AudioPlayer = (function () {
         if (onStopCallback) onStopCallback();
     }
 
-    function toggleDetailPreview() {
-        if (!currentPlayingId) return;
-        toggleGlobalPlay();
+    function toggleDetailPreview(deezerId) {
+        if (!deezerId) {
+            if (!currentPlayingId) return;
+            toggleGlobalPlay();
+            return;
+        }
+        isRadioMode = false;
+        playTrack(deezerId);
     }
 
     function toggleInlinePlay(deezerId, btn) {
@@ -206,8 +211,18 @@ const AudioPlayer = (function () {
         const activeCardBtn = document.querySelector(`.card-play-btn[data-deezer-id="${currentPlayingId}"] .material-symbols-outlined`);
         if (activeCardBtn) activeCardBtn.textContent = isPaused ? 'play_arrow' : 'pause';
 
+        const modalBtn = document.querySelector('.detail-play-btn');
         const modalIcon = document.getElementById('detail-play-icon');
-        if (modalIcon) modalIcon.textContent = isPaused ? 'play_arrow' : 'pause';
+        if (modalBtn && modalIcon) {
+            const modalId = modalBtn.getAttribute('data-deezer-id');
+            if (modalId === String(currentPlayingId) && !isPaused) {
+                modalIcon.textContent = 'pause';
+            } else {
+                modalIcon.textContent = 'play_arrow';
+            }
+        } else if (modalIcon) {
+            modalIcon.textContent = isPaused ? 'play_arrow' : 'pause';
+        }
     }
 
     /* ── Radio Mode ── */
