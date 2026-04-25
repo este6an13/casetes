@@ -137,7 +137,7 @@ async def add_track(body: AddTrackRequest):
         raise HTTPException(status_code=404, detail="Track not found on Deezer")
 
     # Download cover
-    cover_path = await download_cover(track["cover_url"], body.deezer_id)
+    cover_path, cover_color = await download_cover(track["cover_url"], body.deezer_id)
 
     # Build track entry
     entry = {
@@ -147,6 +147,7 @@ async def add_track(body: AddTrackRequest):
         "album": track["album"],
         "release_year": track["release_year"],
         "cover": cover_path,
+        "cover_color": cover_color,
         "duration": track.get("duration", 0),
         "preview_url": track.get("preview_url", ""),
         "tags": [t.strip() for t in body.tags if t.strip()],
@@ -207,7 +208,7 @@ async def refetch_track(deezer_id: str):
         raise HTTPException(status_code=404, detail="Track not found on Deezer")
 
     # Download new cover
-    new_cover_path = await download_cover(new_data["cover_url"], deezer_id)
+    new_cover_path, new_cover_color = await download_cover(new_data["cover_url"], deezer_id)
     
     # Merge data (keep tags and added_at)
     updated_entry = {
@@ -217,6 +218,7 @@ async def refetch_track(deezer_id: str):
         "album": new_data["album"],
         "release_year": new_data["release_year"],
         "cover": new_cover_path or existing_track.get("cover"),
+        "cover_color": new_cover_color or existing_track.get("cover_color"),
         "duration": new_data.get("duration", 0),
         "preview_url": new_data.get("preview_url", ""),
         "tags": existing_track.get("tags", []),
@@ -336,7 +338,7 @@ async def import_library(file: UploadFile = File(...)):
                 # Rate limiter is called inside get_deezer_track!
                 track = await get_deezer_track(did)
                 if track:
-                    cover_path = await download_cover(track["cover_url"], did)
+                    cover_path, cover_color = await download_cover(track["cover_url"], did)
                     
                     entry = {
                         "deezer_id": track["deezer_id"],
@@ -345,6 +347,7 @@ async def import_library(file: UploadFile = File(...)):
                         "album": track["album"],
                         "release_year": track["release_year"],
                         "cover": cover_path,
+                        "cover_color": cover_color,
                         "duration": track.get("duration", 0),
                         "preview_url": track.get("preview_url", ""),
                         "tags": tags,

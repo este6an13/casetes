@@ -78,12 +78,40 @@ const Library = (function () {
             );
         }
 
-        // Shuffle (Fisher-Yates)
-        for (let i = filtered.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            const temp = filtered[i];
-            filtered[i] = filtered[j];
-            filtered[j] = temp;
+        // 1 in 6 chance: sort by cover color (rainbow gradient), otherwise random shuffle
+        var isColorSort = Math.random() < 1 / 6;
+        if (isColorSort) {
+            // Random hue offset so the rainbow starts at a different color each time
+            var hueOffset = Math.floor(Math.random() * 360);
+            // Random direction: forward or reversed rainbow
+            var direction = Math.random() < 0.5 ? 1 : -1;
+            filtered.sort(function (a, b) {
+                var ac = a.cover_color || [0, 0, 0];
+                var bc = b.cover_color || [0, 0, 0];
+                // Group low-saturation (grayscale) covers at the end
+                var aGray = ac[1] < 10 ? 1 : 0;
+                var bGray = bc[1] < 10 ? 1 : 0;
+                if (aGray !== bGray) return aGray - bGray;
+                // Sort by shifted hue, then by lightness
+                var aHue = (ac[0] + hueOffset) % 360;
+                var bHue = (bc[0] + hueOffset) % 360;
+                if (aHue !== bHue) return (aHue - bHue) * direction;
+                return (ac[2] - bc[2]) * direction;
+            });
+        } else {
+            // Shuffle (Fisher-Yates)
+            for (var i = filtered.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var temp = filtered[i];
+                filtered[i] = filtered[j];
+                filtered[j] = temp;
+            }
+        }
+
+        // Show/hide color sort hint
+        var hint = document.getElementById('color-sort-hint');
+        if (hint) {
+            hint.classList.toggle('visible', isColorSort);
         }
 
         currentTracks = filtered;

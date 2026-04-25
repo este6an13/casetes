@@ -86,13 +86,13 @@ async def get_deezer_track(deezer_id: str) -> dict | None:
     }
 
 
-async def download_cover(cover_url: str, deezer_id: str) -> str | None:
+async def download_cover(cover_url: str, deezer_id: str) -> tuple[str | None, list[int] | None]:
     """
     Download cover art and save to data/covers/.
-    Returns the relative path (e.g. "covers/123456.jpg") or None on failure.
+    Returns (relative_path, [h, s, l]) or (None, None) on failure.
     """
     if not cover_url:
-        return None
+        return None, None
 
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -109,9 +109,43 @@ async def download_cover(cover_url: str, deezer_id: str) -> str | None:
             resp = await client.get(cover_url)
             if resp.status_code == 200:
                 filepath.write_bytes(resp.content)
-                return f"covers/{filename}"
+                color = _compute_cover_color(filepath)
+                return f"covers/{filename}", color
     except Exception as e:
         print(f"Error downloading cover: {e}")
 
-    return None
+    return None, None
+
+
+def _compute_cover_color(image_path: Path) -> list[int] | None:
+    """Compute average color of an image as [h, s, l]."""
+    try:
+        from PIL import Image
+        img = Image.open(image_path).convert("RGB")
+        img = img.resize((1, 1), Image.Resampling.LANCZOS)
+        r, g, b = img.getpixel((0, 0))
+
+        # RGB to HSL
+        r2, g2, b2 = r / 255.0, g / 255.0, b / 255.0
+        mx = max(r2, g2, b2)
+        mn = min(r2, g2, b2)
+        l = (mx + mn) / 2.0
+
+        if mx == mn:
+            h = s = 0.0
+        else:
+            d = mx - mn
+            s = d / (2.0 - mx - mn) if l > 0.5 else d / (mx + mn)
+            if mx == r2:
+                h = (g2 - b2) / d + (6.0 if g2 < b2 else 0.0)
+            elif mx == g2:
+                h = (b2 - r2) / d + 2.0
+            else:
+                h = (r2 - g2) / d + 4.0
+            h /= 6.0
+
+        return [round(h * 360), round(s * 100), round(l * 100)]
+    except Exception:
+        return None
+
 
