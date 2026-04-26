@@ -255,8 +255,6 @@ const AudioPlayer = (function () {
         isRadioMode = true;
 
         const currentTrack = allTracks.find(t => t.deezer_id === currentPlayingId);
-        let bestScore = -1;
-        let nextTrackId = null;
 
         const recentHistory = radioHistory.slice(-10);
         const candidatePool = allTracks.filter(t => t.preview_url && !recentHistory.includes(t.deezer_id));
@@ -265,39 +263,59 @@ const AudioPlayer = (function () {
             radioHistory = [currentPlayingId];
             const fallbackPool = allTracks.filter(t => t.preview_url && t.deezer_id !== currentPlayingId);
             if (fallbackPool.length > 0) {
-                nextTrackId = fallbackPool[Math.floor(Math.random() * fallbackPool.length)].deezer_id;
+                const idx = Math.floor(Math.random() * fallbackPool.length);
+                playTrack(fallbackPool[idx].deezer_id);
             } else {
                 stopGlobalAudio();
-                return;
             }
-        } else {
-            candidatePool.forEach(candidate => {
-                let score = 0;
-                if (currentTrack) {
-                    if (currentTrack.artist === candidate.artist) score += 5;
-                    if (currentTrack.tags && candidate.tags) {
-                        const commonTags = currentTrack.tags.filter(tag => candidate.tags.includes(tag));
-                        score += (commonTags.length * 2);
-                    }
-                    if (currentTrack.release_year && candidate.release_year) {
-                        const diff = Math.abs(currentTrack.release_year - candidate.release_year);
-                        if (diff <= 3) score += 3;
-                        else if (diff <= 10) score += 1;
-                    }
-                }
-                score += (Math.random() * 3.0);
-                if (score > bestScore) {
-                    bestScore = score;
-                    nextTrackId = candidate.deezer_id;
-                }
-            });
+            return;
         }
 
-        if (nextTrackId) {
-            playTrack(nextTrackId);
-        } else {
-            stopGlobalAudio();
+        // Build recent-artist list for anti-clustering
+        const recentArtists = radioHistory.slice(-5).map(id => {
+            const t = allTracks.find(tr => tr.deezer_id === id);
+            return t ? t.artist : null;
+        }).filter(Boolean);
+
+        // Score each candidate with mild affinity + anti-clustering
+        const scored = candidatePool.map(candidate => {
+            let score = 1; // base — everyone has a chance
+
+            if (currentTrack) {
+                // Mild tag affinity
+                if (currentTrack.tags && candidate.tags) {
+                    const commonTags = currentTrack.tags.filter(tag => candidate.tags.includes(tag));
+                    score += commonTags.length * 0.5;
+                }
+                // Mild era affinity
+                if (currentTrack.release_year && candidate.release_year) {
+                    const diff = Math.abs(currentTrack.release_year - candidate.release_year);
+                    if (diff <= 5) score += 0.5;
+                }
+            }
+
+            // Anti-clustering: heavily penalize artists heard recently
+            const artistRecentCount = recentArtists.filter(a => a === candidate.artist).length;
+            if (artistRecentCount > 0) {
+                score *= Math.pow(0.15, artistRecentCount);
+            }
+
+            return { id: candidate.deezer_id, score: Math.max(score, 0.01) };
+        });
+
+        // Weighted random selection (not argmax)
+        const totalScore = scored.reduce((sum, s) => sum + s.score, 0);
+        let roll = Math.random() * totalScore;
+        let nextTrackId = scored[scored.length - 1].id;
+        for (const entry of scored) {
+            roll -= entry.score;
+            if (roll <= 0) {
+                nextTrackId = entry.id;
+                break;
+            }
         }
+
+        playTrack(nextTrackId);
     }
 
     /* ── Getters ── */
