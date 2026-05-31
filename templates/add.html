@@ -6,61 +6,195 @@
 <div class="add-container">
     <div class="add-header">
         <h1 class="add-title">Add Song</h1>
-        <p class="add-subtitle">Enter a Deezer track ID to add to your library</p>
+        <p class="add-subtitle" style="margin-bottom: 1.5rem;">Add tracks from Deezer or manually create your own with custom audio files.</p>
+        
+        <!-- Segmented Tab Controls -->
+        <div class="add-modes-tabs">
+            <button type="button" class="tab-btn active" id="tab-deezer" onclick="switchAddMode('deezer')">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem;">search</span>
+                Deezer Track ID
+            </button>
+            <button type="button" class="tab-btn" id="tab-manual" onclick="switchAddMode('manual')">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem;">edit_note</span>
+                Manual Song Creation
+            </button>
+        </div>
     </div>
 
-    <div class="add-grid">
-        <!-- Fetch section -->
-        <div class="fetch-section">
-            <div class="form-group">
-                <label class="form-label" for="deezer-id">Deezer Track ID</label>
-                <div class="fetch-row">
-                    <input class="form-input" type="text" id="deezer-id" name="deezer_id"
-                        placeholder="e.g. 3135556" inputmode="numeric">
-                    <button type="button" class="btn btn-secondary" id="fetch-btn" onclick="fetchTrack()">
-                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">search</span>
-                        Fetch
-                    </button>
+    <!-- Deezer Add Section -->
+    <div id="deezer-add-section">
+        <div class="add-grid">
+            <!-- Fetch section -->
+            <div class="fetch-section">
+                <div class="form-group">
+                    <label class="form-label" for="deezer-id">Deezer Track ID</label>
+                    <div class="fetch-row">
+                        <input class="form-input" type="text" id="deezer-id" name="deezer_id"
+                            placeholder="e.g. 3135556" inputmode="numeric">
+                        <button type="button" class="btn btn-secondary" id="fetch-btn" onclick="fetchTrack()">
+                            <span class="material-symbols-outlined" style="font-size: 1.1rem;">search</span>
+                            Fetch
+                        </button>
+                    </div>
+                    <p class="form-hint">Find the ID in the Deezer track URL: deezer.com/track/<strong>3135556</strong></p>
                 </div>
-                <p class="form-hint">Find the ID in the Deezer track URL: deezer.com/track/<strong>3135556</strong></p>
+
+                <!-- Preview card (hidden until fetched) -->
+                <div class="preview-card" id="preview-card" style="display: none;">
+                    <div class="preview-cover-wrapper">
+                        <img id="preview-cover" src="" alt="Album cover">
+                        <button type="button" class="preview-play-btn" id="preview-play-btn" onclick="togglePreview()" title="Play preview">
+                            <span class="material-symbols-outlined" id="play-icon">play_arrow</span>
+                        </button>
+                    </div>
+                    <div class="preview-info">
+                        <h3 class="preview-title" id="preview-title"></h3>
+                        <p class="preview-artist" id="preview-artist"></p>
+                        <p class="preview-album" id="preview-album"></p>
+                        <p class="preview-year" id="preview-year"></p>
+                    </div>
+                    <audio id="preview-audio" preload="none"></audio>
+                </div>
             </div>
 
-            <!-- Preview card (hidden until fetched) -->
-            <div class="preview-card" id="preview-card" style="display: none;">
-                <div class="preview-cover-wrapper">
-                    <img id="preview-cover" src="" alt="Album cover">
-                    <button type="button" class="preview-play-btn" id="preview-play-btn" onclick="togglePreview()" title="Play preview">
-                        <span class="material-symbols-outlined" id="play-icon">play_arrow</span>
+            <!-- Tags & submit -->
+            <form class="add-form" id="add-form">
+                <div class="form-group">
+                    <label class="form-label">Tags (press space or enter to add)</label>
+                    <div class="tag-input-container" id="tag-container">
+                        <input type="text" id="tag-input-field" placeholder="chill, rock, favorites">
+                    </div>
+                    <input type="hidden" id="tags" name="tags">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">library_add</span>
+                        Add to Library
                     </button>
                 </div>
-                <div class="preview-info">
-                    <h3 class="preview-title" id="preview-title"></h3>
-                    <p class="preview-artist" id="preview-artist"></p>
-                    <p class="preview-album" id="preview-album"></p>
-                    <p class="preview-year" id="preview-year"></p>
+
+                <div class="status-message" id="status-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manual Add Section -->
+    <!-- Manual Add Section -->
+    <div id="manual-add-section" style="display: none;">
+        <!-- Live Card Preview at the Top (Wide) -->
+        <div class="manual-preview-card" style="margin-bottom: 1.5rem; max-width: 100%;">
+            <div class="preview-card" style="display: flex; animation: none; border: none; background: transparent; padding: 1.25rem;">
+                <div class="preview-cover-wrapper" style="box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                    <img id="manual-preview-cover" src="" alt="Cover preview" style="display: none;">
+                    <div id="manual-preview-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:3rem;color:var(--text-muted);background:var(--bg-hover);">♪</div>
+                    <button type="button" class="preview-play-btn" id="manual-preview-play-btn" onclick="toggleManualPreview()" title="Play preview" style="display: none; z-index: 5;">
+                        <span class="material-symbols-outlined" id="manual-play-icon">play_arrow</span>
+                    </button>
                 </div>
-                <audio id="preview-audio" preload="none"></audio>
+                <div class="preview-info" style="margin-left: 0.5rem; flex: 1;">
+                    <h3 class="preview-title" id="manual-preview-title" style="font-family: var(--font-serif); font-size: 1.25rem; font-weight: 600; margin-bottom: 2px;">Song Title</h3>
+                    <p class="preview-artist" id="manual-preview-artist" style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 2px;">Artist Name</p>
+                    <p class="preview-album" id="manual-preview-album" style="font-size: 0.8rem; color: var(--text-muted); font-style: italic; margin-bottom: 2px;">Album Name</p>
+                    <p class="preview-year" id="manual-preview-year" style="font-size: 0.75rem; color: var(--text-muted);">Year</p>
+                </div>
             </div>
+            <audio id="manual-preview-audio" preload="none"></audio>
         </div>
 
-        <!-- Tags & submit -->
-        <form class="add-form" id="add-form">
+        <!-- Wide Form below the Preview Card -->
+        <form class="add-form" id="manual-add-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label class="form-label" for="manual-title">Song Title *</label>
+                <input class="form-input" type="text" id="manual-title" name="title" required placeholder="e.g. Yesterday">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="manual-artist">Artist *</label>
+                <input class="form-input" type="text" id="manual-artist" name="artist" required placeholder="e.g. The Beatles">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="manual-album">Album</label>
+                <input class="form-input" type="text" id="manual-album" name="album" placeholder="e.g. Help!">
+            </div>
+
+            <div class="form-group-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label" for="manual-year">Release Year</label>
+                    <input class="form-input" type="number" id="manual-year" name="release_year" placeholder="e.g. 1965">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="manual-duration">Duration</label>
+                    <input class="form-input" type="text" id="manual-duration" name="duration_str" placeholder="e.g. 2:05 or 125">
+                </div>
+            </div>
+
+            <!-- Cover Image Source Section -->
+            <div class="form-group">
+                <label class="form-label">Cover Image</label>
+                <div class="option-switch">
+                    <button type="button" class="option-btn active" id="btn-cover-file" onclick="setCoverSource('file')">Upload JPG/PNG</button>
+                    <button type="button" class="option-btn" id="btn-cover-url" onclick="setCoverSource('url')">Image URL</button>
+                </div>
+                
+                <!-- Cover File Input -->
+                <div id="cover-file-group" class="file-upload-wrapper">
+                    <input type="file" id="manual-cover-file" name="cover_file" accept="image/jpeg,image/png,image/jpg" class="file-upload-input" onchange="previewManualCoverFile(this)">
+                    <div class="file-upload-design">
+                        <span class="material-symbols-outlined file-upload-icon">image</span>
+                        <span class="file-upload-text" id="cover-file-text">Click or drag cover art here (.jpg, .png)</span>
+                        <span class="file-upload-filename" id="cover-file-name" style="display: none;"></span>
+                    </div>
+                </div>
+
+                <!-- Cover URL Input -->
+                <div id="cover-url-group" style="display: none;">
+                    <input class="form-input" type="url" id="manual-cover-url" name="cover_url" placeholder="https://example.com/cover.jpg" oninput="previewManualCoverUrl(this.value)">
+                </div>
+            </div>
+
+            <!-- Audio Source Section -->
+            <div class="form-group">
+                <label class="form-label">Audio Source (.mp3 only)</label>
+                <div class="option-switch">
+                    <button type="button" class="option-btn active" id="btn-audio-file" onclick="setAudioSource('file')">Upload MP3</button>
+                    <button type="button" class="option-btn" id="btn-audio-url" onclick="setAudioSource('url')">Audio URL</button>
+                </div>
+
+                <!-- Audio File Input -->
+                <div id="audio-file-group" class="file-upload-wrapper">
+                    <input type="file" id="manual-audio-file" name="audio_file" accept="audio/mp3,audio/mpeg" class="file-upload-input" onchange="previewManualAudioFile(this)">
+                    <div class="file-upload-design">
+                        <span class="material-symbols-outlined file-upload-icon">audiotrack</span>
+                        <span class="file-upload-text" id="audio-file-text">Click or drag MP3 audio file here (.mp3)</span>
+                        <span class="file-upload-filename" id="audio-file-name" style="display: none;"></span>
+                    </div>
+                </div>
+
+                <!-- Audio URL Input -->
+                <div id="audio-url-group" style="display: none;">
+                    <input class="form-input" type="url" id="manual-audio-url" name="audio_url" placeholder="https://example.com/song.mp3" oninput="previewManualAudioUrl(this.value)">
+                </div>
+            </div>
+
+            <!-- Tags Chip Input -->
             <div class="form-group">
                 <label class="form-label">Tags (press space or enter to add)</label>
-                <div class="tag-input-container" id="tag-container">
-                    <input type="text" id="tag-input-field" placeholder="chill, rock, favorites">
+                <div class="tag-input-container" id="manual-tag-container">
+                    <input type="text" id="manual-tag-input-field" placeholder="chill, rock, custom">
                 </div>
-                <input type="hidden" id="tags" name="tags">
+                <input type="hidden" id="manual-tags" name="tags">
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+                <button type="submit" class="btn btn-primary" id="manual-submit-btn">
                     <span class="material-symbols-outlined" style="font-size: 1.1rem;">library_add</span>
-                    Add to Library
+                    Add Manual Song
                 </button>
             </div>
 
-            <div class="status-message" id="status-message"></div>
+            <div class="status-message" id="manual-status-message"></div>
         </form>
     </div>
 
@@ -383,6 +517,344 @@
             statusText.style.color = 'var(--error)';
         } finally {
             importFile.disabled = false;
+        }
+    });
+
+    // --- Manual Song Addition Logic ---
+
+    // Segment Tab Switch
+    window.switchAddMode = function(mode) {
+        document.getElementById('tab-deezer').classList.toggle('active', mode === 'deezer');
+        document.getElementById('tab-manual').classList.toggle('active', mode === 'manual');
+        
+        document.getElementById('deezer-add-section').style.display = mode === 'deezer' ? 'block' : 'none';
+        document.getElementById('manual-add-section').style.display = mode === 'manual' ? 'block' : 'none';
+        
+        // Stop previews when switching modes
+        previewAudio.pause();
+        previewAudio.currentTime = 0;
+        document.getElementById('play-icon').textContent = 'play_arrow';
+        
+        pAudio.pause();
+        pAudio.currentTime = 0;
+        document.getElementById('manual-play-icon').textContent = 'play_arrow';
+    }
+
+    // Manual Tag Chip Logic
+    let manualTags = [];
+    const manualTagContainer = document.getElementById('manual-tag-container');
+    const manualTagInputField = document.getElementById('manual-tag-input-field');
+    const hiddenManualTagsInput = document.getElementById('manual-tags');
+
+    function updateManualTags() {
+        const existingChips = manualTagContainer.querySelectorAll('.tag-chip');
+        existingChips.forEach(chip => chip.remove());
+
+        manualTags.forEach((tag, index) => {
+            const chip = document.createElement('div');
+            chip.className = 'tag-chip';
+            chip.innerHTML = `
+                <span>${tag}</span>
+                <span class="tag-chip-remove" onclick="removeManualTag(${index})">&times;</span>
+            `;
+            manualTagContainer.insertBefore(chip, manualTagInputField);
+        });
+
+        hiddenManualTagsInput.value = manualTags.join(', ');
+    }
+
+    window.removeManualTag = function (index) {
+        manualTags.splice(index, 1);
+        updateManualTags();
+    };
+
+    manualTagInputField.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            const val = manualTagInputField.value.trim().replace(/,/g, '');
+            if (val && !manualTags.includes(val)) {
+                manualTags.push(val);
+                manualTagInputField.value = '';
+                updateManualTags();
+            }
+        } else if (e.key === 'Backspace' && manualTagInputField.value === '' && manualTags.length > 0) {
+            manualTags.pop();
+            updateManualTags();
+        }
+    });
+
+    manualTagContainer.addEventListener('click', () => manualTagInputField.focus());
+
+    // Live Card Preview updates
+    const manualTitleInput = document.getElementById('manual-title');
+    const manualArtistInput = document.getElementById('manual-artist');
+    const manualAlbumInput = document.getElementById('manual-album');
+    const manualYearInput = document.getElementById('manual-year');
+    const manualDurationInput = document.getElementById('manual-duration');
+
+    const pTitle = document.getElementById('manual-preview-title');
+    const pArtist = document.getElementById('manual-preview-artist');
+    const pAlbum = document.getElementById('manual-preview-album');
+    const pYear = document.getElementById('manual-preview-year');
+    const pCover = document.getElementById('manual-preview-cover');
+    const pPlaceholder = document.getElementById('manual-preview-placeholder');
+    const pAudio = document.getElementById('manual-preview-audio');
+    const pPlayBtn = document.getElementById('manual-preview-play-btn');
+
+    manualTitleInput.addEventListener('input', (e) => {
+        pTitle.textContent = e.target.value.trim() || 'Song Title';
+    });
+    manualArtistInput.addEventListener('input', (e) => {
+        pArtist.textContent = e.target.value.trim() || 'Artist Name';
+    });
+    manualAlbumInput.addEventListener('input', (e) => {
+        pAlbum.textContent = e.target.value.trim() || 'Album Name';
+    });
+    manualYearInput.addEventListener('input', (e) => {
+        pYear.textContent = e.target.value.trim() || 'Year';
+    });
+
+    // Cover Image Source Switching & Previewing
+    let coverSourceMode = 'file'; // 'file' | 'url'
+    window.setCoverSource = function(mode) {
+        coverSourceMode = mode;
+        document.getElementById('btn-cover-file').classList.toggle('active', mode === 'file');
+        document.getElementById('btn-cover-url').classList.toggle('active', mode === 'url');
+        document.getElementById('cover-file-group').style.display = mode === 'file' ? 'block' : 'none';
+        document.getElementById('cover-url-group').style.display = mode === 'url' ? 'block' : 'none';
+        
+        // Reset cover previews
+        pCover.src = "";
+        pCover.style.display = 'none';
+        pPlaceholder.style.display = 'flex';
+        
+        if (mode === 'file') {
+            const fileInput = document.getElementById('manual-cover-file');
+            if (fileInput.files.length > 0) {
+                previewManualCoverFile(fileInput);
+            }
+        } else {
+            const urlInput = document.getElementById('manual-cover-url');
+            if (urlInput.value) {
+                previewManualCoverUrl(urlInput.value);
+            }
+        }
+    }
+
+    window.previewManualCoverFile = function(input) {
+        const file = input.files[0];
+        const filenameSpan = document.getElementById('cover-file-name');
+        const textSpan = document.getElementById('cover-file-text');
+        
+        if (file) {
+            filenameSpan.textContent = file.name;
+            filenameSpan.style.display = 'inline-block';
+            textSpan.textContent = 'Selected cover image:';
+            
+            const objectUrl = URL.createObjectURL(file);
+            pCover.src = objectUrl;
+            pCover.style.display = 'block';
+            pPlaceholder.style.display = 'none';
+        } else {
+            filenameSpan.style.display = 'none';
+            textSpan.textContent = 'Click or drag cover art here (.jpg, .png)';
+            pCover.src = "";
+            pCover.style.display = 'none';
+            pPlaceholder.style.display = 'flex';
+        }
+    }
+
+    window.previewManualCoverUrl = function(url) {
+        if (url.trim()) {
+            pCover.src = url.trim();
+            pCover.style.display = 'block';
+            pPlaceholder.style.display = 'none';
+        } else {
+            pCover.src = "";
+            pCover.style.display = 'none';
+            pPlaceholder.style.display = 'flex';
+        }
+    }
+
+    // Audio Source Switching & Previewing
+    let audioSourceMode = 'file'; // 'file' | 'url'
+    window.setAudioSource = function(mode) {
+        audioSourceMode = mode;
+        document.getElementById('btn-audio-file').classList.toggle('active', mode === 'file');
+        document.getElementById('btn-audio-url').classList.toggle('active', mode === 'url');
+        document.getElementById('audio-file-group').style.display = mode === 'file' ? 'block' : 'none';
+        document.getElementById('audio-url-group').style.display = mode === 'url' ? 'block' : 'none';
+        
+        // Reset audio previews
+        pAudio.pause();
+        pAudio.src = "";
+        pPlayBtn.style.display = 'none';
+        document.getElementById('manual-play-icon').textContent = 'play_arrow';
+        
+        if (mode === 'file') {
+            const fileInput = document.getElementById('manual-audio-file');
+            if (fileInput.files.length > 0) {
+                previewManualAudioFile(fileInput);
+            }
+        } else {
+            const urlInput = document.getElementById('manual-audio-url');
+            if (urlInput.value) {
+                previewManualAudioUrl(urlInput.value);
+            }
+        }
+    }
+
+    window.previewManualAudioFile = function(input) {
+        const file = input.files[0];
+        const filenameSpan = document.getElementById('audio-file-name');
+        const textSpan = document.getElementById('audio-file-text');
+        
+        if (file) {
+            if (!file.name.toLowerCase().endsWith('.mp3')) {
+                alert('Only .mp3 audio files are supported.');
+                input.value = '';
+                filenameSpan.style.display = 'none';
+                textSpan.textContent = 'Click or drag MP3 audio file here (.mp3)';
+                pAudio.src = "";
+                pPlayBtn.style.display = 'none';
+                return;
+            }
+            
+            filenameSpan.textContent = file.name;
+            filenameSpan.style.display = 'inline-block';
+            textSpan.textContent = 'Selected MP3 audio:';
+            
+            const objectUrl = URL.createObjectURL(file);
+            pAudio.src = objectUrl;
+            pPlayBtn.style.display = 'flex';
+        } else {
+            filenameSpan.style.display = 'none';
+            textSpan.textContent = 'Click or drag MP3 audio file here (.mp3)';
+            pAudio.src = "";
+            pPlayBtn.style.display = 'none';
+        }
+    }
+
+    window.previewManualAudioUrl = function(url) {
+        if (url.trim()) {
+            pAudio.src = url.trim();
+            pPlayBtn.style.display = 'flex';
+        } else {
+            pAudio.src = "";
+            pPlayBtn.style.display = 'none';
+        }
+    }
+
+    // Toggle Preview Playback
+    window.toggleManualPreview = function() {
+        const icon = document.getElementById('manual-play-icon');
+        if (pAudio.paused) {
+            previewAudio.pause();
+            document.getElementById('play-icon').textContent = 'play_arrow';
+            
+            pAudio.play();
+            icon.textContent = 'pause';
+        } else {
+            pAudio.pause();
+            icon.textContent = 'play_arrow';
+        }
+    }
+    
+    pAudio.addEventListener('ended', () => {
+        document.getElementById('manual-play-icon').textContent = 'play_arrow';
+    });
+
+    // Form Submission
+    document.getElementById('manual-add-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const mSubmitBtn = document.getElementById('manual-submit-btn');
+        const mStatusMessage = document.getElementById('manual-status-message');
+        
+        mSubmitBtn.disabled = true;
+        mSubmitBtn.innerHTML = '<span class="material-symbols-outlined spin">progress_activity</span> Adding Manual Song...';
+        mStatusMessage.textContent = '';
+        mStatusMessage.className = 'status-message';
+
+        const formData = new FormData();
+        formData.append('title', manualTitleInput.value.trim());
+        formData.append('artist', manualArtistInput.value.trim());
+        formData.append('album', manualAlbumInput.value.trim());
+        
+        const yearVal = manualYearInput.value.trim();
+        if (yearVal) formData.append('release_year', yearVal);
+        
+        formData.append('duration_str', manualDurationInput.value.trim());
+        formData.append('tags', manualTags.join(','));
+
+        if (coverSourceMode === 'file') {
+            const fileInput = document.getElementById('manual-cover-file');
+            if (fileInput.files.length > 0) {
+                formData.append('cover_file', fileInput.files[0]);
+            }
+        } else {
+            formData.append('cover_url', document.getElementById('manual-cover-url').value.trim());
+        }
+
+        if (audioSourceMode === 'file') {
+            const fileInput = document.getElementById('manual-audio-file');
+            if (fileInput.files.length > 0) {
+                formData.append('audio_file', fileInput.files[0]);
+            }
+        } else {
+            formData.append('audio_url', document.getElementById('manual-audio-url').value.trim());
+        }
+
+        try {
+            const resp = await fetch('/api/add-track-manual', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Failed to add manual track');
+            }
+
+            const result = await resp.json();
+            const track = result.track;
+
+            mStatusMessage.textContent = `"${track.title}" manually added to library!`;
+            mStatusMessage.className = 'status-message success';
+
+            // Reset manual form
+            document.getElementById('manual-add-form').reset();
+            manualTags = [];
+            updateManualTags();
+            
+            // Reset cover file visual states
+            document.getElementById('cover-file-name').style.display = 'none';
+            document.getElementById('cover-file-text').textContent = 'Click or drag cover art here (.jpg, .png)';
+            
+            // Reset audio file visual states
+            document.getElementById('audio-file-name').style.display = 'none';
+            document.getElementById('audio-file-text').textContent = 'Click or drag MP3 audio file here (.mp3)';
+            
+            // Reset live preview card
+            pTitle.textContent = 'Song Title';
+            pArtist.textContent = 'Artist Name';
+            pAlbum.textContent = 'Album Name';
+            pYear.textContent = 'Year';
+            pCover.src = "";
+            pCover.style.display = 'none';
+            pPlaceholder.style.display = 'flex';
+            
+            pAudio.pause();
+            pAudio.src = "";
+            pPlayBtn.style.display = 'none';
+            document.getElementById('manual-play-icon').textContent = 'play_arrow';
+            
+        } catch (err) {
+            mStatusMessage.textContent = err.message;
+            mStatusMessage.className = 'status-message error';
+        } finally {
+            mSubmitBtn.disabled = false;
+            mSubmitBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1.1rem;">library_add</span> Add Manual Song';
         }
     });
 </script>

@@ -392,25 +392,31 @@ const Library = (function () {
             youtube: `<svg class="platform-icon" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><title>YouTube Music</title><path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm0 19.104c-3.924 0-7.104-3.18-7.104-7.104S8.076 4.896 12 4.896s7.104 3.18 7.104 7.104-3.18 7.104-7.104 7.104zm0-13.332c-3.432 0-6.228 2.796-6.228 6.228S8.568 18.228 12 18.228s6.228-2.796 6.228-6.228S15.432 5.772 12 5.772zM9.684 15.54V8.46L15.816 12l-6.132 3.54z"/></svg>`
         };
 
-        html += '<a href="https://www.deezer.com/track/' + Utils.escapeAttr(track.deezer_id) + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Open in Deezer">';
-        html += brandIcons.deezer + '<span class="detail-link-text">Deezer</span></a>';
+        const isManual = track.deezer_id.toString().startsWith("manual_");
 
+        if (!isManual) {
+            html += '<a href="https://www.deezer.com/track/' + Utils.escapeAttr(track.deezer_id) + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Open in Deezer">';
+            html += brandIcons.deezer + '<span class="detail-link-text">Deezer</span></a>';
+        }
+ 
         html += '<a href="https://open.spotify.com/search/' + queryStr + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on Spotify">';
         html += brandIcons.spotify + '<span class="detail-link-text">Spotify</span></a>';
-
+ 
         const appleQuery = encodeURIComponent(track.title + ' ' + track.artist);
         html += '<a href="https://music.apple.com/WebObjects/MZStore.woa/wa/search?term=' + appleQuery + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on Apple Music">';
         html += brandIcons.apple + '<span class="detail-link-text">Apple Music</span></a>';
-
+ 
         html += '<a href="https://music.youtube.com/search?q=' + appleQuery + '" target="_blank" rel="noopener" class="detail-link" onclick="event.stopPropagation();" title="Search on YouTube Music">';
         html += brandIcons.youtube + '<span class="detail-link-text">YouTube Music</span></a>';
         html += '</div>';
-
+ 
         html += '<div class="detail-links" style="margin-top: auto; border-top: 1px solid var(--border-hover); padding-top: 0.8rem; justify-content: space-between;">';
         if (window.__ADMIN_MODE) {
-            html += '<button class="detail-link" onclick="event.stopPropagation(); Library.refetchTrack(\'' + Utils.escapeAttr(track.deezer_id) + '\')" title="Refetch Data" style="color: var(--text-primary);">';
-            html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">sync</span><span class="detail-link-text">Refetch</span></button>';
-
+            if (!isManual) {
+                html += '<button class="detail-link" onclick="event.stopPropagation(); Library.refetchTrack(\'' + Utils.escapeAttr(track.deezer_id) + '\')" title="Refetch Data" style="color: var(--text-primary);">';
+                html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">sync</span><span class="detail-link-text">Refetch</span></button>';
+            }
+ 
             html += '<button class="detail-delete" onclick="event.stopPropagation(); Library.deleteTrack(\'' + Utils.escapeAttr(track.deezer_id) + '\')" title="Remove from Library">';
             html += '<span class="material-symbols-outlined" style="font-size:1.1rem;">delete</span><span class="detail-link-text">Remove</span></button>';
         }

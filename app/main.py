@@ -14,7 +14,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, Response, StreamingResponse, RedirectResponse
@@ -23,10 +23,13 @@ import io
 import os
 import subprocess
 import openpyxl
+import httpx
+import uuid
+import time
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-from .music_service import get_deezer_track, download_cover
+from .music_service import get_deezer_track, download_cover, _compute_cover_color
 
 load_dotenv()
 ADMIN_MODE = os.getenv("ADMIN_MODE", "false").lower() == "true"
@@ -43,21 +46,29 @@ def get_image_base_url() -> str:
 
 
 # --- Static files & templates ---
-app.mount("/static", StaticFiles(directory="static"), name="static")
 # Serve cover images from data/covers
 DATA_DIR = Path("data")
 COVERS_DIR = DATA_DIR / "covers"
 LIBRARY_FILE = DATA_DIR / "library.json"
-
-templates = Jinja2Templates(directory="templates")
 
 
 # --- Data helpers ---
 def _ensure_data_dir():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / "audio").mkdir(parents=True, exist_ok=True)
     if not LIBRARY_FILE.exists():
         LIBRARY_FILE.write_text("[]", encoding="utf-8")
+
+
+# Ensure directories exist on module load so StaticFiles mounts don't raise RuntimeError
+_ensure_data_dir()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/covers", StaticFiles(directory="data/covers"), name="covers")
+app.mount("/audio", StaticFiles(directory="data/audio"), name="audio")
+
+templates = Jinja2Templates(directory="templates")
 
 
 def _read_library() -> list[dict]:
@@ -151,6 +162,116 @@ async def add_track(body: AddTrackRequest):
         "duration": track.get("duration", 0),
         "preview_url": track.get("preview_url", ""),
         "tags": [t.strip() for t in body.tags if t.strip()],
+        "added_at": datetime.utcnow().isoformat(),
+    }
+
+    library.append(entry)
+    _write_library(library)
+
+    return {"message": "success", "track": entry}
+
+
+@app.post("/api/add-track-manual")
+async def add_track_manual(
+    title: str = Form(...),
+    artist: str = Form(...),
+    album: str = Form(None),
+    release_year: int = Form(None),
+    duration_str: str = Form(None),
+    tags: str = Form(""),
+    cover_file: UploadFile = File(None),
+    cover_url: str = Form(None),
+    audio_file: UploadFile = File(None),
+    audio_url: str = Form(None)
+):
+    """Add a song manually, handling cover files/URLs and audio files/URLs."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    library = _read_library()
+
+    # Generate a unique conflict-free manual ID
+    deezer_id = f"manual_{int(time.time())}"
+    while any(t["deezer_id"] == deezer_id for t in library):
+        deezer_id = f"manual_{int(time.time())}_{uuid.uuid4().hex[:4]}"
+
+    # Parse duration
+    duration = 0
+    if duration_str:
+        duration_str = duration_str.strip()
+        if ":" in duration_str:
+            try:
+                parts = duration_str.split(":")
+                if len(parts) == 2:
+                    duration = int(parts[0]) * 60 + int(parts[1])
+                elif len(parts) == 3:
+                    duration = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            except ValueError:
+                pass
+        else:
+            try:
+                duration = int(duration_str)
+            except ValueError:
+                pass
+
+    # Parse tags
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # Cover image logic
+    cover_path = None
+    cover_color = None
+    if cover_file and cover_file.filename:
+        # Check that it's an image
+        ext = Path(cover_file.filename).suffix.lower()
+        if ext not in [".jpg", ".jpeg", ".png"]:
+            ext = ".jpg"  # default
+        cover_filename = f"{deezer_id}{ext}"
+        cover_filepath = COVERS_DIR / cover_filename
+        with open(cover_filepath, "wb") as f:
+            f.write(await cover_file.read())
+        cover_path = f"covers/{cover_filename}"
+        cover_color = _compute_cover_color(cover_filepath)
+    elif cover_url:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(cover_url, timeout=10)
+                if resp.status_code == 200:
+                    ext = ".jpg"
+                    if ".png" in cover_url.lower():
+                        ext = ".png"
+                    cover_filename = f"{deezer_id}{ext}"
+                    cover_filepath = COVERS_DIR / cover_filename
+                    cover_filepath.write_bytes(resp.content)
+                    cover_path = f"covers/{cover_filename}"
+                    cover_color = _compute_cover_color(cover_filepath)
+        except Exception as e:
+            print(f"Error downloading cover image: {e}")
+
+    # Audio logic (strictly only MP3 supported)
+    preview_url = ""
+    if audio_file and audio_file.filename:
+        ext = Path(audio_file.filename).suffix.lower()
+        if ext != ".mp3":
+            raise HTTPException(status_code=400, detail="Only .mp3 files are supported")
+        audio_filename = f"{deezer_id}.mp3"
+        audio_filepath = (DATA_DIR / "audio") / audio_filename
+        with open(audio_filepath, "wb") as f:
+            f.write(await audio_file.read())
+        preview_url = f"/audio/{audio_filename}"
+    elif audio_url:
+        preview_url = audio_url
+
+    # Save to library
+    entry = {
+        "deezer_id": deezer_id,
+        "title": title.strip(),
+        "artist": artist.strip(),
+        "album": album.strip() if album else "Unknown",
+        "release_year": release_year,
+        "cover": cover_path,
+        "cover_color": cover_color,
+        "duration": duration,
+        "preview_url": preview_url,
+        "tags": tag_list,
         "added_at": datetime.utcnow().isoformat(),
     }
 
