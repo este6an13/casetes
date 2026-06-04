@@ -12,6 +12,7 @@ from pathlib import Path
 
 DEEZER_API_BASE = "https://api.deezer.com"
 COVERS_DIR = Path("data/covers")
+ARTISTS_DIR = Path("data/artists")
 
 class RateLimiter:
     """Enforces a limit of exactly max_requests per window_seconds."""
@@ -38,8 +39,8 @@ class RateLimiter:
                 if sleep_time > 0:
                     await asyncio.sleep(sleep_time)
 
-# 50 requests per 300 seconds (5 minutes)
-deezer_limiter = RateLimiter(max_requests=50, window_seconds=300)
+# 40 requests per 5 seconds (Deezer API limit is 50 req / 5s)
+deezer_limiter = RateLimiter(max_requests=40, window_seconds=5)
 
 
 async def get_deezer_track(deezer_id: str) -> dict | None:
@@ -71,11 +72,24 @@ async def get_deezer_track(deezer_id: str) -> dict | None:
         except ValueError:
             pass
 
+    # Extract contributors
+    contributors = []
+    for c in data.get("contributors", []):
+        contributors.append({
+            "name": c.get("name"),
+            "role": c.get("role", "Unknown"),
+            "id": str(c.get("id", "")),
+            "picture_medium": c.get("picture_medium", "")
+        })
+
     return {
         "deezer_id": str(data["id"]),
         "title": data.get("title", "Unknown"),
         "artist": data.get("artist", {}).get("name", "Unknown"),
+        "artist_id": str(data.get("artist", {}).get("id", "")),
+        "artist_picture": data.get("artist", {}).get("picture_medium", ""),
         "album": data.get("album", {}).get("title", "Unknown"),
+        "album_id": data.get("album", {}).get("id"),
         "release_year": release_year,
         "cover_url": data.get("album", {}).get("cover_medium")
                      or data.get("album", {}).get("cover_big")
@@ -83,7 +97,48 @@ async def get_deezer_track(deezer_id: str) -> dict | None:
         "duration": data.get("duration", 0),
         "preview_url": data.get("preview", ""),
         "isrc": data.get("isrc"),
+        "contributors": contributors,
     }
+
+async def get_deezer_album(album_id: int | str) -> dict | None:
+    """Fetch album metadata from Deezer, specifically for genres."""
+    if not album_id:
+        return None
+        
+    url = f"{DEEZER_API_BASE}/album/{album_id}"
+    await deezer_limiter.acquire()
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+
+    if "error" in data:
+        return None
+
+    genres = []
+    for g in data.get("genres", {}).get("data", []):
+        if g.get("name"):
+            genres.append(g["name"])
+            
+    return {"genres": genres}
+
+async def get_deezer_track_enriched(deezer_id: str) -> dict | None:
+    """Fetch track metadata and enrich it with album genres."""
+    track_data = await get_deezer_track(deezer_id)
+    if not track_data:
+        return None
+        
+    genres = []
+    if track_data.get("album_id"):
+        album_data = await get_deezer_album(track_data["album_id"])
+        if album_data:
+            genres = album_data.get("genres", [])
+            
+    track_data["genres"] = genres
+    return track_data
+
 
 
 async def download_cover(cover_url: str, deezer_id: str) -> tuple[str | None, list[int] | None]:
@@ -147,5 +202,37 @@ def _compute_cover_color(image_path: Path) -> list[int] | None:
         return [round(h * 360), round(s * 100), round(l * 100)]
     except Exception:
         return None
+
+async def download_artist_picture(picture_url: str, artist_id: str) -> str | None:
+    """
+    Download artist picture and save to data/artists/.
+    Returns relative_path or None on failure. Skips if already exists.
+    """
+    if not picture_url or not artist_id:
+        return None
+
+    ARTISTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    ext = ".jpg"
+    if ".png" in picture_url.lower():
+        ext = ".png"
+
+    filename = f"{artist_id}{ext}"
+    filepath = ARTISTS_DIR / filename
+
+    if filepath.exists():
+        return f"artists/{filename}"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(picture_url)
+            if resp.status_code == 200:
+                filepath.write_bytes(resp.content)
+                return f"artists/{filename}"
+    except Exception as e:
+        print(f"Error downloading artist picture: {e}")
+
+    return None
+
 
 

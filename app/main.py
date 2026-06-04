@@ -10,26 +10,36 @@ Routes:
   PATCH  /track/{deezer_id}/tags → update tags
 """
 
+import csv
+import io
 import json
+import os
+import subprocess
+import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, Response, StreamingResponse, RedirectResponse
-import csv
-import io
-import os
-import subprocess
-import openpyxl
 import httpx
-import uuid
-import time
+import openpyxl
 from dotenv import load_dotenv
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import (
+    HTMLResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from .music_service import get_deezer_track, download_cover, _compute_cover_color
+from .music_service import (
+    _compute_cover_color,
+    download_artist_picture,
+    download_cover,
+    get_deezer_track_enriched,
+)
 
 load_dotenv()
 ADMIN_MODE = os.getenv("ADMIN_MODE", "false").lower() == "true"
@@ -37,6 +47,7 @@ ADMIN_MODE = os.getenv("ADMIN_MODE", "false").lower() == "true"
 GCP_DATA_BUCKET_NAME = os.getenv("GCP_DATA_BUCKET_NAME", "")
 
 app = FastAPI(title="Music Library")
+
 
 def get_image_base_url() -> str:
     """Compute the base URL for serving cover images."""
@@ -81,7 +92,9 @@ def _read_library() -> list[dict]:
 
 def _write_library(tracks: list[dict]):
     _ensure_data_dir()
-    LIBRARY_FILE.write_text(json.dumps(tracks, indent=2, ensure_ascii=False), encoding="utf-8")
+    LIBRARY_FILE.write_text(
+        json.dumps(tracks, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
 
 # --- Startup ---
@@ -92,17 +105,22 @@ async def startup_event():
 
 # --- Routes ---
 
+
 @app.get("/", response_class=HTMLResponse)
 async def library_page(request: Request):
     """Library page — serves all tracks as embedded JSON."""
     tracks = _read_library()
     tracks_json = json.dumps(tracks, ensure_ascii=False)
-    return templates.TemplateResponse(request=request, name="library.html", context={
-        "request": request,
-        "tracks_json": tracks_json,
-        "admin_mode": ADMIN_MODE,
-        "image_base_url": get_image_base_url(),
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="library.html",
+        context={
+            "request": request,
+            "tracks_json": tracks_json,
+            "admin_mode": ADMIN_MODE,
+            "image_base_url": get_image_base_url(),
+        },
+    )
 
 
 @app.get("/add", response_class=HTMLResponse)
@@ -110,7 +128,11 @@ async def add_page(request: Request):
     """Add song page."""
     if not ADMIN_MODE:
         return RedirectResponse(url="/", status_code=303)
-    return templates.TemplateResponse(request=request, name="add.html", context={"request": request, "admin_mode": ADMIN_MODE})
+    return templates.TemplateResponse(
+        request=request,
+        name="add.html",
+        context={"request": request, "admin_mode": ADMIN_MODE},
+    )
 
 
 class FetchTrackRequest(BaseModel):
@@ -120,7 +142,7 @@ class FetchTrackRequest(BaseModel):
 @app.post("/api/fetch-track")
 async def fetch_track_preview(body: FetchTrackRequest):
     """Fetch track metadata from Deezer without saving. Used for preview."""
-    track = await get_deezer_track(body.deezer_id)
+    track = await get_deezer_track_enriched(body.deezer_id)
     if not track:
         raise HTTPException(status_code=404, detail="Track not found on Deezer")
     return track
@@ -129,6 +151,22 @@ async def fetch_track_preview(body: FetchTrackRequest):
 class AddTrackRequest(BaseModel):
     deezer_id: str
     tags: list[str] = []
+
+
+async def _process_track_pictures(track: dict):
+    """Download artist and contributor pictures and update paths in the track dict."""
+    if track.get("artist_picture") and track.get("artist_id"):
+        local_path = await download_artist_picture(
+            track["artist_picture"], track["artist_id"]
+        )
+        if local_path:
+            track["artist_picture"] = local_path
+
+    for c in track.get("contributors", []):
+        if c.get("picture_medium") and c.get("id"):
+            local_path = await download_artist_picture(c["picture_medium"], c["id"])
+            if local_path:
+                c["picture_medium"] = local_path
 
 
 @app.post("/api/add-track")
@@ -143,12 +181,15 @@ async def add_track(body: AddTrackRequest):
         raise HTTPException(status_code=409, detail="Track already in library")
 
     # Fetch metadata
-    track = await get_deezer_track(body.deezer_id)
+    track = await get_deezer_track_enriched(body.deezer_id)
     if not track:
         raise HTTPException(status_code=404, detail="Track not found on Deezer")
 
     # Download cover
     cover_path, cover_color = await download_cover(track["cover_url"], body.deezer_id)
+
+    # Download artist pictures
+    await _process_track_pictures(track)
 
     # Build track entry
     entry = {
@@ -163,6 +204,9 @@ async def add_track(body: AddTrackRequest):
         "preview_url": track.get("preview_url", ""),
         "tags": [t.strip() for t in body.tags if t.strip()],
         "added_at": datetime.utcnow().isoformat(),
+        "contributors": track.get("contributors", []),
+        "genres": track.get("genres", []),
+        "artist_picture": track.get("artist_picture", ""),
     }
 
     library.append(entry)
@@ -182,7 +226,7 @@ async def add_track_manual(
     cover_file: UploadFile = File(None),
     cover_url: str = Form(None),
     audio_file: UploadFile = File(None),
-    audio_url: str = Form(None)
+    audio_url: str = Form(None),
 ):
     """Add a song manually, handling cover files/URLs and audio files/URLs."""
     if not ADMIN_MODE:
@@ -273,6 +317,9 @@ async def add_track_manual(
         "preview_url": preview_url,
         "tags": tag_list,
         "added_at": datetime.utcnow().isoformat(),
+        "contributors": [],
+        "genres": [],
+        "artist_picture": "",
     }
 
     library.append(entry)
@@ -317,20 +364,25 @@ async def refetch_track(deezer_id: str):
         if str(t["deezer_id"]) == deezer_id:
             existing_track_idx = i
             break
-            
+
     if existing_track_idx == -1:
         raise HTTPException(status_code=404, detail="Track not found in library")
 
     existing_track = library[existing_track_idx]
 
     # Fetch new metadata
-    new_data = await get_deezer_track(deezer_id)
+    new_data = await get_deezer_track_enriched(deezer_id)
     if not new_data:
         raise HTTPException(status_code=404, detail="Track not found on Deezer")
 
     # Download new cover
-    new_cover_path, new_cover_color = await download_cover(new_data["cover_url"], deezer_id)
-    
+    new_cover_path, new_cover_color = await download_cover(
+        new_data["cover_url"], deezer_id
+    )
+
+    # Download artist pictures
+    await _process_track_pictures(new_data)
+
     # Merge data (keep tags and added_at)
     updated_entry = {
         "deezer_id": new_data["deezer_id"],
@@ -344,7 +396,10 @@ async def refetch_track(deezer_id: str):
         "preview_url": new_data.get("preview_url", ""),
         "tags": existing_track.get("tags", []),
         "added_at": existing_track.get("added_at"),
-        "isrc": new_data.get("isrc")
+        "isrc": new_data.get("isrc"),
+        "contributors": new_data.get("contributors", []),
+        "genres": new_data.get("genres", []),
+        "artist_picture": new_data.get("artist_picture", ""),
     }
 
     library[existing_track_idx] = updated_entry
@@ -376,48 +431,78 @@ async def update_tags(deezer_id: str, body: UpdateTagsRequest):
     _write_library(library)
     return {"message": "tags updated", "tags": library[0]["tags"] if library else []}
 
+
 @app.post("/api/import")
 async def import_library(file: UploadFile = File(...)):
     """Import tracks from CSV, JSON, or XLSX and fetch metadata with SSE progress."""
     if not ADMIN_MODE:
         raise HTTPException(status_code=403, detail="Not authorized")
     raw_content = await file.read()
-    content: bytes = raw_content if isinstance(raw_content, bytes) else raw_content.encode('utf-8')
+    content: bytes = (
+        raw_content if isinstance(raw_content, bytes) else raw_content.encode("utf-8")
+    )
     filename = file.filename.lower() if file.filename else "unknown"
-    
+
     tracks_to_import = []
-    
+
     try:
         if filename.endswith(".json"):
             data = json.loads(content)
             for item in data:
                 if "deezer_id" in item or "Deezer ID" in item:
                     did = str(item.get("deezer_id") or item.get("Deezer ID"))
-                    tags = item.get("tags", []) if isinstance(item.get("tags"), list) else [t.strip() for t in str(item.get("tags", "")).split(",") if t.strip()]
+                    tags = (
+                        item.get("tags", [])
+                        if isinstance(item.get("tags"), list)
+                        else [
+                            t.strip()
+                            for t in str(item.get("tags", "")).split(",")
+                            if t.strip()
+                        ]
+                    )
                     tracks_to_import.append({"deezer_id": did, "tags": tags})
-        
+
         elif filename.endswith(".csv"):
             reader = csv.DictReader(io.StringIO(content.decode("utf-8")))
             for row in reader:
                 # Support "deezer_id" or "Deezer ID"
-                did_key = next((k for k in row.keys() if k and k.lower() in ["deezer_id", "deezer id"]), None)
+                did_key = next(
+                    (
+                        k
+                        for k in row.keys()
+                        if k and k.lower() in ["deezer_id", "deezer id"]
+                    ),
+                    None,
+                )
                 if did_key and row[did_key]:
-                    tag_key = next((k for k in row.keys() if k and k.lower() == "tags"), None)
-                    tags = [t.strip() for t in row[tag_key].split(",")] if tag_key and row[tag_key] else []
-                    tracks_to_import.append({"deezer_id": str(row[did_key]), "tags": tags})
-                    
+                    tag_key = next(
+                        (k for k in row.keys() if k and k.lower() == "tags"), None
+                    )
+                    tags = (
+                        [t.strip() for t in row[tag_key].split(",")]
+                        if tag_key and row[tag_key]
+                        else []
+                    )
+                    tracks_to_import.append(
+                        {"deezer_id": str(row[did_key]), "tags": tags}
+                    )
+
         elif filename.endswith(".xlsx"):
             wb = openpyxl.load_workbook(filename=io.BytesIO(content), data_only=True)
             ws = wb.active
             rows = list(ws.iter_rows(values_only=True))
             if len(rows) > 0:
-                headers = [str(cell).lower() if cell is not None else "" for cell in rows[0]]
+                headers = [
+                    str(cell).lower() if cell is not None else "" for cell in rows[0]
+                ]
                 did_idx = -1
                 tag_idx = -1
                 for i, h in enumerate(headers):
-                    if h in ["deezer_id", "deezer id"]: did_idx = i
-                    elif h == "tags": tag_idx = i
-                
+                    if h in ["deezer_id", "deezer id"]:
+                        did_idx = i
+                    elif h == "tags":
+                        tag_idx = i
+
                 if did_idx != -1:
                     for row in rows[1:]:
                         did = str(row[did_idx]) if row[did_idx] is not None else ""
@@ -425,18 +510,20 @@ async def import_library(file: UploadFile = File(...)):
                             tags = []
                             if tag_idx != -1 and row[tag_idx] is not None:
                                 tags = [t.strip() for t in str(row[tag_idx]).split(",")]
-                            tracks_to_import.append({"deezer_id": did.strip(), "tags": tags})
-                            
+                            tracks_to_import.append(
+                                {"deezer_id": did.strip(), "tags": tags}
+                            )
+
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format")
-            
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error parsing file: {str(e)}")
 
     # Deduplicate against current library
     library = _read_library()
     existing_ids = {str(t["deezer_id"]) for t in library}
-    
+
     unique_imports = []
     seen_import_ids = set()
     for t in tracks_to_import:
@@ -447,20 +534,23 @@ async def import_library(file: UploadFile = File(...)):
     async def import_generator():
         # Start SSE format
         yield f"data: {json.dumps({'status': 'start', 'total': len(unique_imports)})}\n\n"
-        
+
         success_count = 0
         current_library = _read_library()
-        
+
         for i, track_req in enumerate(unique_imports):
             did = track_req["deezer_id"]
             tags = track_req["tags"]
-            
+
             try:
                 # Rate limiter is called inside get_deezer_track!
-                track = await get_deezer_track(did)
+                track = await get_deezer_track_enriched(did)
                 if track:
-                    cover_path, cover_color = await download_cover(track["cover_url"], did)
-                    
+                    cover_path, cover_color = await download_cover(
+                        track["cover_url"], did
+                    )
+                    await _process_track_pictures(track)
+
                     entry = {
                         "deezer_id": track["deezer_id"],
                         "title": track["title"],
@@ -473,18 +563,21 @@ async def import_library(file: UploadFile = File(...)):
                         "preview_url": track.get("preview_url", ""),
                         "tags": tags,
                         "added_at": datetime.utcnow().isoformat(),
-                        "isrc": track.get("isrc")
+                        "isrc": track.get("isrc"),
+                        "contributors": track.get("contributors", []),
+                        "genres": track.get("genres", []),
+                        "artist_picture": track.get("artist_picture", ""),
                     }
                     current_library.append(entry)
                     _write_library(current_library)
                     success_count += 1
-                    
+
                     yield f"data: {json.dumps({'status': 'progress', 'current': i + 1, 'total': len(unique_imports), 'track': track['title']})}\n\n"
                 else:
                     yield f"data: {json.dumps({'status': 'error', 'current': i + 1, 'total': len(unique_imports), 'message': f'Deezer ID {did} not found'})}\n\n"
             except Exception as e:
                 yield f"data: {json.dumps({'status': 'error', 'current': i + 1, 'total': len(unique_imports), 'message': str(e)})}\n\n"
-                
+
         yield f"data: {json.dumps({'status': 'done', 'added': success_count, 'total': len(unique_imports)})}\n\n"
 
     return StreamingResponse(import_generator(), media_type="text/event-stream")
@@ -495,70 +588,94 @@ async def sync_database():
     """Sync the database to Google Cloud Storage (admin only)."""
     if not ADMIN_MODE:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     data_bucket = os.getenv("GCP_DATA_BUCKET_NAME")
     if not data_bucket:
-        raise HTTPException(status_code=500, detail="GCP_DATA_BUCKET_NAME not set in .env")
-        
+        raise HTTPException(
+            status_code=500, detail="GCP_DATA_BUCKET_NAME not set in .env"
+        )
+
     data_dir = Path("data").resolve()
     if not data_dir.exists():
         raise HTTPException(status_code=500, detail="Local 'data' directory not found")
-        
-    cmd = [
-        "gsutil", "-m", "rsync", "-r",
-        str(data_dir),
-        f"gs://{data_bucket}"
-    ]
-    
+
+    cmd = ["gsutil", "-m", "rsync", "-r", str(data_dir), f"gs://{data_bucket}"]
+
     meta_cmd = [
-        "gsutil", "-m", "setmeta", "-h", "Cache-Control:public, max-age=31536000, immutable",
-        f"gs://{data_bucket}/covers/*.jpg"
+        "gsutil",
+        "-m",
+        "setmeta",
+        "-h",
+        "Cache-Control:public, max-age=31536000, immutable",
+        f"gs://{data_bucket}/covers/*.jpg",
+        f"gs://{data_bucket}/artists/*",
     ]
-    
+
     try:
-        is_windows = os.name == 'nt'
-        result = subprocess.run(cmd, check=True, shell=is_windows, capture_output=True, text=True)
-        # Attempt to set Cache-Control on all .jpg items in covers bucket
+        is_windows = os.name == "nt"
+        result = subprocess.run(
+            cmd, check=True, shell=is_windows, capture_output=True, text=True
+        )
+        # Attempt to set Cache-Control on all items in covers and artists folders
         subprocess.run(meta_cmd, shell=is_windows, capture_output=True, text=True)
         return {"message": "Sync completed successfully\n" + result.stdout[:500]}
     except subprocess.CalledProcessError as e:
-        raise HTTPException(status_code=500, detail=f"Sync failed with exit code {e.returncode}: {e.stderr}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sync failed with exit code {e.returncode}: {e.stderr}",
+        )
     except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="Error: 'gsutil' command not found. Please ensure Google Cloud CLI is installed.")
+        raise HTTPException(
+            status_code=500,
+            detail="Error: 'gsutil' command not found. Please ensure Google Cloud CLI is installed.",
+        )
 
 
 @app.get("/api/export/{fmt}")
 async def export_library(fmt: str):
     """Export the music library to CSV, JSON, or XLSX."""
     library = _read_library()
-    
+
     timestamp = datetime.now().strftime("%y%m%d-%H%M%S")
     filename = f"music-library-data-{timestamp}.{fmt}"
 
     if fmt == "json":
         # Stripping out internal paths like 'cover' before exporting
-        export_data = [{k: v for k, v in track.items() if k != 'cover'} for track in library]
+        export_data = [
+            {k: v for k, v in track.items() if k != "cover"} for track in library
+        ]
         content = json.dumps(export_data, indent=2, ensure_ascii=False)
         return Response(
             content=content,
             media_type="application/json",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
-        
+
     # Prepare flat data for CSV and XLSX
-    headers = ["Title", "Artist", "Album", "Year", "Duration (s)", "Tags", "Deezer ID", "ISRC"]
+    headers = [
+        "Title",
+        "Artist",
+        "Album",
+        "Year",
+        "Duration (s)",
+        "Tags",
+        "Deezer ID",
+        "ISRC",
+    ]
     rows = []
     for track in library:
-        rows.append([
-            track.get("title", ""),
-            track.get("artist", ""),
-            track.get("album", ""),
-            track.get("release_year", ""),
-            track.get("duration", 0),
-            ", ".join(track.get("tags", [])),
-            track.get("deezer_id", ""),
-            track.get("isrc", "")
-        ])
+        rows.append(
+            [
+                track.get("title", ""),
+                track.get("artist", ""),
+                track.get("album", ""),
+                track.get("release_year", ""),
+                track.get("duration", 0),
+                ", ".join(track.get("tags", [])),
+                track.get("deezer_id", ""),
+                track.get("isrc", ""),
+            ]
+        )
 
     if fmt == "csv":
         output = io.BytesIO()
@@ -571,9 +688,9 @@ async def export_library(fmt: str):
         return Response(
             content=output.getvalue(),
             media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
-        
+
     if fmt == "xlsx":
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -581,13 +698,15 @@ async def export_library(fmt: str):
         ws.append(headers)
         for row in rows:
             ws.append(row)
-        
+
         output = io.BytesIO()
         wb.save(output)
         return Response(
             content=output.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    raise HTTPException(status_code=400, detail="Invalid format. Supported: json, csv, xlsx")
+    raise HTTPException(
+        status_code=400, detail="Invalid format. Supported: json, csv, xlsx"
+    )

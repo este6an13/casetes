@@ -42,7 +42,8 @@ def main():
     
     meta_cmd = [
         "gsutil", "-m", "setmeta", "-h", "Cache-Control:public, max-age=31536000, immutable",
-        f"gs://{data_bucket}/covers/*.jpg"
+        f"gs://{data_bucket}/covers/*.jpg",
+        f"gs://{data_bucket}/artists/*"
     ]
 
     try:
@@ -50,7 +51,7 @@ def main():
         is_windows = os.name == 'nt'
         subprocess.run(cmd, check=True, shell=is_windows)
         
-        print(f"\nApplying cache headers to gs://{data_bucket}/covers/*.jpg...")
+        print(f"\nApplying cache headers to gs://{data_bucket}/covers/*.jpg and gs://{data_bucket}/artists/*...")
         subprocess.run(meta_cmd, shell=is_windows)
         
         print("\nSync completed successfully!")
