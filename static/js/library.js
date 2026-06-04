@@ -74,7 +74,9 @@ const Library = (function () {
                 (t.title || '').toLowerCase().includes(q) ||
                 (t.artist || '').toLowerCase().includes(q) ||
                 (t.album || '').toLowerCase().includes(q) ||
-                (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q)))
+                (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q))) ||
+                (t.genres && t.genres.some(g => g.toLowerCase().includes(q))) ||
+                (t.contributors && t.contributors.some(c => c.name && c.name.toLowerCase().includes(q)))
             );
         }
 
