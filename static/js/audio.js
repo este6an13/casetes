@@ -123,7 +123,12 @@ const AudioPlayer = (function () {
         updateGlobalAudioUI();
     }
 
-    /* ── Fetch a fresh preview URL from the API (fallback) ── */
+    /* ── Fetch a fresh preview URL (fallback) ──
+     * Asks our server first. Deezer only returns previews for tracks licensed
+     * in the caller's country, so if the server (hosted in the US) gets none,
+     * query Deezer directly from the browser via JSONP to use the listener's
+     * own region.
+     */
     async function fetchFreshPreviewUrl(deezerId) {
         try {
             const resp = await fetch('/api/fetch-track', {
@@ -131,13 +136,41 @@ const AudioPlayer = (function () {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deezer_id: deezerId })
             });
-            if (!resp.ok) return null;
-            const data = await resp.json();
-            return data.preview_url || null;
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.preview_url) return data.preview_url;
+            }
         } catch (e) {
             console.error("Error fetching fresh preview URL:", e);
-            return null;
         }
+
+        if (!/^\d+$/.test(String(deezerId))) return null;
+        return fetchPreviewUrlViaJsonp(deezerId);
+    }
+
+    /* ── Fetch a preview URL straight from Deezer (JSONP, bypasses CORS) ── */
+    function fetchPreviewUrlViaJsonp(deezerId, timeoutMs = 8000) {
+        return new Promise(resolve => {
+            const callbackName = `__deezerCb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            const script = document.createElement('script');
+            let timer = null;
+
+            function cleanup(result) {
+                clearTimeout(timer);
+                delete window[callbackName];
+                script.remove();
+                resolve(result);
+            }
+
+            window[callbackName] = data => {
+                cleanup(data && !data.error && data.preview ? data.preview : null);
+            };
+            script.onerror = () => cleanup(null);
+            timer = setTimeout(() => cleanup(null), timeoutMs);
+
+            script.src = `https://api.deezer.com/track/${encodeURIComponent(deezerId)}?output=jsonp&callback=${callbackName}`;
+            document.head.appendChild(script);
+        });
     }
 
     /* ── Global Audio Controls ── */
