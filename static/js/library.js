@@ -152,7 +152,7 @@ const Library = (function () {
             html += '<div class="track-cover-wrapper">';
             if (track.cover) {
                 const imgBase = window.IMAGE_BASE_URL || '/';
-                html += '<img class="track-cover" src="' + imgBase + Utils.escapeAttr(track.cover) + '" alt="' + Utils.escapeAttr(track.title) + '" loading="lazy" onload="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')">';
+                html += '<img class="track-cover" src="' + imgBase + Utils.escapeAttr(track.cover) + '" alt="' + Utils.escapeAttr(track.title) + '" loading="lazy" onload="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')" onerror="this.closest(\'.track-card\').classList.remove(\'skeleton-loading\')">';
             } else {
                 html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text-muted);">♪</div>';
             }
@@ -177,6 +177,27 @@ const Library = (function () {
         html += '</div>';
 
         container.innerHTML = html;
+        observeSkeletonCards(container);
+    }
+
+    /* ── Skeleton shimmer only near the viewport ──
+     * Off-screen covers are lazy and may never load, so an always-on shimmer
+     * would keep hundreds of animations running. Cards get .in-view while
+     * near the viewport, and the shimmer CSS only applies to those.
+     */
+    let skeletonObserver = null;
+    function observeSkeletonCards(container) {
+        if (skeletonObserver) skeletonObserver.disconnect();
+        if (!('IntersectionObserver' in window)) return;
+        skeletonObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                entry.target.classList.toggle('in-view', entry.isIntersecting);
+                if (!entry.target.classList.contains('skeleton-loading')) {
+                    skeletonObserver.unobserve(entry.target);
+                }
+            });
+        }, { rootMargin: '200px 0px' });
+        container.querySelectorAll('.track-card.skeleton-loading').forEach(card => skeletonObserver.observe(card));
     }
 
     /* ── Browse Mode (category cards) ── */

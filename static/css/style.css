@@ -45,12 +45,13 @@
 
     --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-props: background-color, color, border-color, box-shadow, opacity, transform, visibility;
 }
 
 html {
     font-size: 16px;
     scroll-behavior: smooth;
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 body {
@@ -61,7 +62,7 @@ body {
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 /* ── Header ── */
@@ -69,9 +70,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 200;
-    background: rgba(10, 10, 12, 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(10, 10, 12, 0.96);
     border-bottom: 1px solid var(--border);
 }
 
@@ -157,7 +156,8 @@ body {
     opacity: 0;
     visibility: hidden;
     transform: translateY(-8px);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     z-index: 300;
 }
 
@@ -174,7 +174,8 @@ body {
     font-size: 0.85rem;
     font-weight: 500;
     border-radius: var(--radius-sm);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     display: flex;
     align-items: center;
 }
@@ -195,7 +196,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .nav-btn-circle:hover {
@@ -244,7 +246,8 @@ body {
     font-size: 0.85rem;
     width: 220px;
     outline: none;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props), width;
 }
 
 .search-input:focus {
@@ -307,11 +310,13 @@ main {
     background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: rainbowShift 6s linear infinite;
+    animation-play-state: paused;
 }
 
 .color-sort-hint.visible {
     opacity: 1;
     max-height: 2rem;
+    animation-play-state: running;
 }
 
 @keyframes rainbowShift {
@@ -367,8 +372,11 @@ main {
     cursor: pointer;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     animation: fadeInUp 0.4s ease both;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
 }
 
 .track-card:hover {
@@ -437,7 +445,8 @@ main {
     align-items: center;
     justify-content: center;
     z-index: 20;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .playlist-checkbox .check-icon {
@@ -445,7 +454,8 @@ main {
     color: white;
     opacity: 0;
     transform: scale(0.5);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 body.playlist-active .playlist-checkbox {
@@ -496,7 +506,8 @@ body.playlist-active .track-card.selected {
     justify-content: center;
     opacity: 0;
     transform: translateY(4px);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     box-shadow: 0 2px 12px var(--accent-glow);
     z-index: 2;
 }
@@ -572,7 +583,8 @@ body.playlist-active .track-card.selected {
     cursor: pointer;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     animation: fadeInUp 0.4s ease both;
 }
 
@@ -736,7 +748,8 @@ body.playlist-active .track-card.selected {
     border-radius: var(--radius-md);
     font-size: 0.8rem;
     cursor: pointer;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .random-chip:hover {
@@ -777,7 +790,8 @@ body.playlist-active .track-card.selected {
     justify-content: center;
     opacity: 0;
     visibility: hidden;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .modal.active {
@@ -845,7 +859,8 @@ body.playlist-active .track-card.selected {
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 20px var(--accent-glow);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .detail-play-btn:hover {
@@ -909,7 +924,8 @@ body.playlist-active .track-card.selected {
     font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     text-decoration: none;
     border: none;
 }
@@ -941,7 +957,8 @@ body.playlist-active .track-card.selected {
     text-decoration: none;
     font-size: 0.8rem;
     font-weight: 500;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .detail-link:hover {
@@ -994,7 +1011,8 @@ body.playlist-active .track-card.selected {
     align-items: center;
     justify-content: center;
     font-size: 1.1rem;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     z-index: 2;
 }
 
@@ -1016,7 +1034,8 @@ body.playlist-active .track-card.selected {
     cursor: pointer;
     font-size: 0.8rem;
     font-weight: 500;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     flex: 1;
 }
 
@@ -1094,7 +1113,8 @@ body.playlist-active .track-card.selected {
     color: var(--text-primary);
     font-family: inherit;
     font-size: 1rem;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .form-input:focus {
@@ -1123,7 +1143,8 @@ body.playlist-active .track-card.selected {
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     margin-right: 1rem;
 }
 
@@ -1154,7 +1175,8 @@ body.playlist-active .track-card.selected {
     font-weight: 500;
     cursor: pointer;
     border: none;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     text-decoration: none;
 }
 
@@ -1269,7 +1291,8 @@ body.playlist-active .track-card.selected {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     cursor: text;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     min-height: 42px;
     align-items: center;
 }
@@ -1335,7 +1358,8 @@ body.playlist-active .track-card.selected {
     margin-top: 0.5rem;
     border-radius: var(--radius-sm);
     text-align: center;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .status-message.success {
@@ -1413,7 +1437,7 @@ body.playlist-active .track-card.selected {
 }
 
 /* ── Skeleton Loading ── */
-.skeleton-loading .track-cover-wrapper {
+.skeleton-loading.in-view .track-cover-wrapper {
     background: linear-gradient(110deg, var(--bg-secondary) 30%, rgba(255, 255, 255, 0.05) 50%, var(--bg-secondary) 70%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
@@ -1440,9 +1464,7 @@ body.modal-open {
     bottom: 2rem;
     right: 2rem;
     width: 320px;
-    background: rgba(17, 17, 20, 0.9);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(17, 17, 20, 0.97);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -1731,8 +1753,7 @@ body.modal-open {
     bottom: 0;
     left: 0;
     width: 100%;
-    background: rgba(10, 10, 12, 0.85);
-    backdrop-filter: blur(12px);
+    background: rgba(10, 10, 12, 0.96);
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
@@ -1742,7 +1763,8 @@ body.modal-open {
     transform: translateY(100%);
     opacity: 0;
     visibility: hidden;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-property: var(--transition-props);
 }
 
 .now-playing-bar.active {
@@ -1797,6 +1819,11 @@ body.modal-open {
     background: var(--accent);
     border-radius: 2px;
     animation: eq 1.2s ease-in-out infinite alternate;
+    animation-play-state: paused;
+}
+
+.now-playing-bar.is-playing .np-playing-fx .bar {
+    animation-play-state: running;
 }
 
 .np-playing-fx .bar:nth-child(1) {
@@ -1873,7 +1900,8 @@ body.modal-open {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .np-btn:hover {
@@ -1927,7 +1955,8 @@ body.modal-open {
     font-weight: 500;
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1981,7 +2010,8 @@ body.modal-open {
     font-weight: 500;
     cursor: pointer;
     border-radius: calc(var(--radius-sm) - 2px);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .option-btn:hover {
@@ -2020,7 +2050,8 @@ body.modal-open {
     border: 2px dashed var(--border);
     border-radius: var(--radius-sm);
     text-align: center;
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .file-upload-wrapper:hover .file-upload-design {
@@ -2074,7 +2105,8 @@ body.modal-open {
     border-radius: var(--radius-md);
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-    transition: all var(--transition);
+    transition: var(--transition);
+    transition-property: var(--transition-props);
 }
 
 .manual-preview-card:hover {
