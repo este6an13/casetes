@@ -2270,7 +2270,7 @@ body.modal-open {
     left: 16px;
     right: 16px;
     height: 76px;
-    padding: 0.3rem 0.55rem;
+    padding: 0.35rem 0.45rem;
     border-radius: 3px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
     transform: rotate(-0.8deg);
@@ -2280,24 +2280,17 @@ body.modal-open {
     transform: rotate(0.7deg);
 }
 
-.mixtape-name {
-    display: block;
-    font-family: var(--font-hand);
-    font-weight: 700;
-    font-size: 1.3rem;
-    line-height: 1.1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
 .mixtape-meta {
-    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 9px;
+    text-align: center;
     font-size: 0.6rem;
     font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    opacity: 0.65;
+    color: var(--text-muted);
 }
 
 .mixtape-window {
@@ -2325,41 +2318,25 @@ body.modal-open {
         repeating-conic-gradient(#e6e6ea 0 30deg, #8e8e98 30deg 60deg);
 }
 
-.mixtape-covers {
-    position: absolute;
-    left: 50%;
-    bottom: 9px;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 4px;
-}
-
-.mixtape-covers img {
-    width: 26px;
-    height: 26px;
-    border-radius: 3px;
-    object-fit: cover;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
 /* ── Mixtape tracklist (modal) ── */
 .tape-card-header {
     padding: 2rem 1.5rem 1rem;
     text-align: center;
 }
 
-.tape-card-postit {
-    display: inline-block;
-    max-width: 100%;
-    padding: 0.4rem 1.1rem 0.5rem;
-    border-radius: 3px;
-    color: var(--postit-ink);
-    font-family: var(--font-hand);
-    font-weight: 700;
+.tape-card-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 110px;
+    padding: 0 1.25rem;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.tape-card-label .tape-name-strip {
     font-size: 2rem;
-    line-height: 1.1;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-    transform: rotate(-1.5deg);
+    padding: 0 1rem;
 }
 
 .tape-card-meta {
@@ -2477,8 +2454,8 @@ body.modal-open {
         height: 64px;
     }
 
-    .mixtape-name {
-        font-size: 1.15rem;
+    .mixtape-label .tape-name-strip {
+        font-size: 1.05rem;
     }
 
     .mixtape-window {
@@ -2490,11 +2467,6 @@ body.modal-open {
     .mixtape-reel {
         width: 13px;
         height: 13px;
-    }
-
-    .mixtape-covers img {
-        width: 22px;
-        height: 22px;
     }
 }
 
@@ -2570,29 +2542,35 @@ body.modal-open {
     justify-content: space-between;
     gap: 0.5rem;
     height: 100%;
-    padding: 0 0.55rem;
+    padding: 0 0.35rem;
     border-radius: 2px;
-    color: var(--postit-ink);
 }
 
-.tape-spine-name {
-    min-width: 0;
-    font-family: var(--font-hand);
-    font-weight: 700;
-    font-size: 1.1rem;
-    line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.tape-spine-label .tape-name-strip {
+    font-size: 1.05rem;
+    line-height: 1.25;
+}
+
+.tape-spine:nth-child(3n+2) .tape-name-strip {
+    transform: rotate(1deg);
+}
+
+.tape-spine:nth-child(3n) .tape-name-strip {
+    transform: rotate(-0.5deg);
 }
 
 .tape-spine-meta {
+    position: relative;
+    z-index: 1;
     flex-shrink: 0;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #f1ede4;
     font-family: var(--font-sans);
     font-size: 0.62rem;
     font-weight: 500;
     letter-spacing: 0.05em;
-    opacity: 0.6;
 }
 
 @keyframes postitIn {
@@ -2623,4 +2601,59 @@ body.modal-open {
     width: 1rem;
     height: 1rem;
     vertical-align: -0.15em;
+}
+
+/* ── Tape label paper: cover collage + masking-tape name ── */
+.tape-label {
+    position: relative;
+    overflow: hidden;
+    color: var(--postit-ink);
+}
+
+.mixtape-label.tape-label {
+    position: absolute;
+}
+
+.tape-art {
+    position: absolute;
+    inset: 0;
+    display: flex;
+}
+
+/* Warm wash so mixed covers read as one printed paper */
+.tape-art::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 236, 200, 0.08), rgba(0, 0, 0, 0.2));
+}
+
+.tape-art-piece {
+    flex-basis: 0;
+    min-width: 0;
+    background-repeat: no-repeat;
+}
+
+.tape-art-piece + .tape-art-piece {
+    box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.45);
+}
+
+.tape-name-strip {
+    position: relative;
+    z-index: 1;
+    display: inline-block;
+    max-width: 100%;
+    padding: 0 0.5rem;
+    background: #efe7d3;
+    color: var(--postit-ink);
+    font-family: var(--font-hand);
+    font-weight: 700;
+    font-size: 1.2rem;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transform: rotate(-1.5deg);
+    /* Torn ends */
+    clip-path: polygon(0 10%, 2% 0, 98% 6%, 100% 0, 99% 50%, 100% 92%, 97% 100%, 3% 95%, 0 100%, 1% 50%);
 }

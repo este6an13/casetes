@@ -94,13 +94,49 @@ const Mixtapes = (function () {
             const tags = fromPairs ? shuffledPairs.pop() : singles.pop();
             const tracks = pickSongs(tracksWithTags(tags));
             if (tracks.length < MIN_TAPE_SONGS) continue;
-            tapes.push({ name: tags.join(' + '), tags: tags, tracks: tracks, color: Utils.tagColor(tags[0]) });
+            tapes.push({ name: tags.join(' + '), tags: tags, tracks: tracks, color: Utils.tagColor(tags[0]), art: pickArt(tracks) });
         }
 
         for (let i = 0; i < wildcardCount; i++) {
-            tapes.push({ name: 'wildcard', tags: [], tracks: pickSongs(allTracks), color: 'white' });
+            const tracks = pickSongs(allTracks);
+            tapes.push({ name: 'wildcard', tags: [], tracks: tracks, color: 'white', art: pickArt(tracks) });
         }
         return tapes;
+    }
+
+    /* ── Label art ──
+     * A label is a collage of 1-3 slices cut from the tape's own covers,
+     * each a random crop, so every tape's paper looks different. Covers are
+     * 250px, so crops zoom in at most ~1.8x (and never below the slice
+     * width) to stay sharp.
+     */
+    function pickArt(tracks) {
+        const covers = shuffle([...new Set(tracks.map(t => t.cover).filter(Boolean))]);
+        const pieces = Math.min(covers.length, 1 + Math.floor(Math.random() * 3));
+        return covers.slice(0, pieces).map(cover => ({
+            cover: cover,
+            x: Math.round(Math.random() * 100),
+            y: Math.round(Math.random() * 100),
+            size: 250 + Math.round(Math.random() * 200),
+            grow: (1 + Math.random() * 2).toFixed(2),
+        }));
+    }
+
+    // Opens a label: the cover collage (falls back to the post-it colour)
+    // with the name written on a strip of masking tape. Caller closes it.
+    function labelHtml(tape, className) {
+        const imgBase = window.IMAGE_BASE_URL || '/';
+        let html = '<span class="' + className + ' tape-label postit-' + tape.color + '">';
+        if (tape.art.length) {
+            html += '<span class="tape-art">';
+            tape.art.forEach(p => {
+                const url = Utils.escapeAttr(encodeURI(imgBase + p.cover));
+                html += '<span class="tape-art-piece" style="flex-grow: ' + p.grow + '; background-image: url(&quot;' + url + '&quot;); background-size: max(100%, ' + p.size + 'px) auto; background-position: ' + p.x + '% ' + p.y + '%;"></span>';
+            });
+            html += '</span>';
+        }
+        html += '<span class="tape-name-strip">' + Utils.escapeHtml(tape.name) + '</span>';
+        return html;
     }
 
     // Replace a set's tapes in the registry and return the new ids
@@ -123,21 +159,13 @@ const Mixtapes = (function () {
         const shelf = document.getElementById('mixtape-shelf-tapes');
         if (!shelf) return;
 
-        const imgBase = window.IMAGE_BASE_URL || '/';
         let html = '';
         shelfIds.forEach(id => {
             const tape = tapesById[id];
             html += '<button type="button" class="mixtape" onclick="Mixtapes.open(' + id + ')" title="Open ' + Utils.escapeAttr(tape.name) + ' tape">';
-            html += '<span class="mixtape-label postit-' + tape.color + '">';
-            html += '<span class="mixtape-name">' + Utils.escapeHtml(tape.name) + '</span>';
-            html += '<span class="mixtape-meta">' + tape.tracks.length + ' songs · ' + tapeMinutes(tape) + ' min</span>';
-            html += '</span>';
+            html += labelHtml(tape, 'mixtape-label') + '</span>';
             html += '<span class="mixtape-window"><span class="mixtape-reel"></span><span class="mixtape-reel"></span></span>';
-            html += '<span class="mixtape-covers">';
-            tape.tracks.slice(0, 4).forEach(t => {
-                if (t.cover) html += '<img src="' + imgBase + Utils.escapeAttr(t.cover) + '" alt="" loading="lazy">';
-            });
-            html += '</span>';
+            html += '<span class="mixtape-meta">' + tape.tracks.length + ' songs · ' + tapeMinutes(tape) + ' min</span>';
             html += '</button>';
         });
         shelf.innerHTML = html;
@@ -173,8 +201,7 @@ const Mixtapes = (function () {
             boxIds.slice(i, i + TAPES_PER_CUBBY).forEach(id => {
                 const tape = tapesById[id];
                 html += '<button type="button" class="tape-spine" style="--shift: ' + tape.shift + 'px;" onclick="Mixtapes.open(' + id + ')" title="Open ' + Utils.escapeAttr(tape.name) + ' tape">';
-                html += '<span class="tape-spine-label postit-' + tape.color + '">';
-                html += '<span class="tape-spine-name">' + Utils.escapeHtml(tape.name) + '</span>';
+                html += labelHtml(tape, 'tape-spine-label');
                 html += '<span class="tape-spine-meta">' + tape.tracks.length + ' · ' + tapeMinutes(tape) + '\'</span>';
                 html += '</span></button>';
             });
@@ -196,7 +223,7 @@ const Mixtapes = (function () {
         let html = '<div class="detail-card tape-card">';
         html += '<button class="detail-close" onclick="closeModal()" aria-label="Close">&#10005;</button>';
         html += '<div class="tape-card-header">';
-        html += '<div class="tape-card-postit postit-' + tape.color + '">' + Utils.escapeHtml(tape.name) + '</div>';
+        html += labelHtml(tape, 'tape-card-label') + '</span>';
         html += '<div class="tape-card-meta">' + tape.tracks.length + ' songs · ' + tapeMinutes(tape) + ' min</div>';
         html += '<button type="button" class="btn btn-primary tape-play-btn" onclick="Mixtapes.play(' + id + ', 0)">';
         html += '<span class="material-symbols-outlined">play_arrow</span> Play tape</button>';
