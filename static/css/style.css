@@ -2133,7 +2133,7 @@ body.modal-open {
 
 .detail-tag {
     border-radius: 2px;
-    background: var(--postit-yellow);
+    background: var(--postit, var(--postit-yellow));
     color: var(--postit-ink);
     font-family: var(--font-hand);
     font-size: 1.05rem;
@@ -2143,15 +2143,28 @@ body.modal-open {
     transform: rotate(-1.5deg);
 }
 
-.detail-tag:nth-child(5n+2) { background: var(--postit-pink); transform: rotate(1.2deg); }
-.detail-tag:nth-child(5n+3) { background: var(--postit-green); transform: rotate(-0.6deg); }
-.detail-tag:nth-child(5n+4) { background: var(--postit-blue); transform: rotate(1.6deg); }
-.detail-tag:nth-child(5n+5) { background: var(--postit-orange); transform: rotate(-1deg); }
+.detail-tag:nth-child(5n+2) { transform: rotate(1.2deg); }
+.detail-tag:nth-child(5n+3) { transform: rotate(-0.6deg); }
+.detail-tag:nth-child(5n+4) { transform: rotate(1.6deg); }
+.detail-tag:nth-child(5n+5) { transform: rotate(-1deg); }
 
 .detail-tag:hover {
     background: #fff3b0;
     color: var(--postit-ink);
     transform: rotate(0deg) translateY(-1px);
+}
+
+/* Tag name on a browse-by-tag card */
+.browse-tag {
+    display: inline-block;
+    margin-bottom: 0.35rem;
+    padding: 0.15rem 0.6rem;
+    font-size: 1.3rem;
+    cursor: inherit;
+}
+
+.browse-card:hover .browse-tag {
+    transform: rotate(0deg);
 }
 
 .detail-tag.detail-tag-edit {

@@ -266,7 +266,11 @@ const Library = (function () {
             }
             html += '</div>';
             html += '<div class="browse-card-info">';
-            html += '<div class="browse-card-name">' + Utils.escapeHtml(cat.name) + '</div>';
+            if (mode === 'tag') {
+                html += '<div><span class="detail-tag browse-tag" style="' + tagPostitStyle(cat.name) + '">' + Utils.escapeHtml(cat.name) + '</span></div>';
+            } else {
+                html += '<div class="browse-card-name">' + Utils.escapeHtml(cat.name) + '</div>';
+            }
             html += '<div class="browse-card-count">' + cat.count + ' song' + (cat.count !== 1 ? 's' : '') + '</div>';
             html += '</div></div>';
         });
@@ -510,12 +514,23 @@ const Library = (function () {
         }
     }
 
+    /* ── Post-it colour per tag ──
+     * Picked from a hash of the name, so a tag is the same post-it on its
+     * browse card and on every song.
+     */
+    function tagPostitStyle(tag) {
+        const colors = ['yellow', 'pink', 'green', 'blue', 'orange'];
+        let hash = 0;
+        for (const ch of tag) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+        return '--postit: var(--postit-' + colors[Math.abs(hash) % colors.length] + ');';
+    }
+
     /* ── Edit Tags ── */
     function renderTagsUI(track) {
         let html = '<div class="detail-tags" style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;">';
         if (track.tags && track.tags.length > 0) {
             track.tags.forEach(tag => {
-                html += '<button class="detail-tag" onclick="event.stopPropagation(); Library.setTag(\'' + Utils.escapeAttr(tag) + '\'); window.closeModal();">' + Utils.escapeHtml(tag) + '</button>';
+                html += '<button class="detail-tag" style="' + tagPostitStyle(tag) + '" onclick="event.stopPropagation(); Library.setTag(\'' + Utils.escapeAttr(tag) + '\'); window.closeModal();">' + Utils.escapeHtml(tag) + '</button>';
             });
         }
 
