@@ -208,9 +208,9 @@ const Library = (function () {
         const container = document.getElementById('track-grid');
         if (!container) return;
 
-        // The tape rack is drawn by Mixtapes from its current deal
+        // The tape box is drawn by Mixtapes from its current deal
         if (mode === 'tapes') {
-            Mixtapes.renderRack(container);
+            Mixtapes.renderBox(container);
             updateTrackCount(allTracks.length);
             return;
         }
@@ -312,15 +312,20 @@ const Library = (function () {
         const text = document.getElementById('active-group-text');
         const icon = document.getElementById('group-icon');
         if (indicator && text) {
-            const labels = { artist: 'by Artist', year: 'by Year', tag: 'by Tag', tapes: 'tape rack' };
-            const icons = { artist: 'person', year: 'calendar_month', tag: 'label', tapes: 'shelves' };
+            const labels = { artist: 'by Artist', year: 'by Year', tag: 'by Tag', tapes: 'tape box' };
+            const icons = { artist: 'person', year: 'calendar_month', tag: 'label' };
             text.textContent = labels[mode];
-            if (icon) icon.textContent = icons[mode];
+            if (icon) {
+                // The cassette isn't in the icon font; reuse the button's SVG
+                const tapesSvg = document.querySelector('#group-tapes-btn svg');
+                if (mode === 'tapes' && tapesSvg) icon.innerHTML = tapesSvg.outerHTML;
+                else icon.textContent = icons[mode];
+            }
             indicator.style.display = 'inline-flex';
         }
 
         Mixtapes.setVisible(false);
-        if (mode === 'tapes') Mixtapes.dealRack();
+        if (mode === 'tapes') Mixtapes.dealBox();
         renderBrowseGrid(mode);
     }
 

@@ -27,9 +27,16 @@
             onclick="Library.groupBy('tag')">
             <span class="material-symbols-outlined">label</span>
         </button>
-        <button type="button" class="nav-btn-circle nav-icon-btn" id="group-tapes-btn" title="Tape Rack"
+        <button type="button" class="nav-btn-circle nav-icon-btn" id="group-tapes-btn" title="Tape Box"
             onclick="Library.groupBy('tapes')">
-            <span class="material-symbols-outlined">shelves</span>
+            <svg class="icon-cassette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                stroke-linejoin="round" aria-hidden="true">
+                <rect x="2.5" y="5" width="19" height="14" rx="2" />
+                <rect x="6" y="8" width="12" height="5" rx="2.5" />
+                <circle cx="9" cy="10.5" r="1" />
+                <circle cx="15" cy="10.5" r="1" />
+                <path d="M7 19l1.5-3h7l1.5 3" />
+            </svg>
         </button>
         <div class="header-divider"
             style="width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 0.25rem;"></div>
@@ -143,8 +150,8 @@
 <script src="/static/js/utils.js?v=2"></script>
 <script src="/static/js/audio.js?v=9"></script>
 <script src="/static/js/playlist.js?v=1"></script>
-<script src="/static/js/mixtapes.js?v=3"></script>
-<script src="/static/js/library.js?v=16"></script>
+<script src="/static/js/mixtapes.js?v=4"></script>
+<script src="/static/js/library.js?v=18"></script>
 <script>
     (function () {
         function boot() {

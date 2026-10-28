@@ -2498,24 +2498,24 @@ body.modal-open {
     }
 }
 
-/* ── Tape rack (browse mode) ── */
+/* ── Tape box (browse mode) ── */
 .postit-white { background: #f1ede4; }
 
-.tape-rack-header {
+.tape-box-header {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     margin-bottom: 1rem;
 }
 
-.tape-rack-count {
+.tape-box-count {
     font-size: 0.75rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text-muted);
 }
 
-.tape-rack {
+.tape-box {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
@@ -2602,13 +2602,25 @@ body.modal-open {
 }
 
 @media (max-width: 1000px) {
-    .tape-rack {
+    .tape-box {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (max-width: 600px) {
-    .tape-rack {
+    .tape-box {
         grid-template-columns: 1fr;
     }
+}
+
+/* Drawn icons (not in the icon font) */
+.icon-cassette {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+#group-icon .icon-cassette {
+    width: 1rem;
+    height: 1rem;
+    vertical-align: -0.15em;
 }

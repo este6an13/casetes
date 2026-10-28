@@ -3,7 +3,7 @@
  *
  * Tapes are themed by one tag or a pair of tags, plus pure-random
  * "wildcard" tapes. Two sets are dealt: a short shelf on the library page
- * and a full tape rack (the "tapes" browse mode), both fresh each time.
+ * and a full tape box (the "tapes" browse mode), both fresh each time.
  * Opening a tape shows its tracklist; playing it queues the songs in order
  * through AudioPlayer.
  *
@@ -18,15 +18,15 @@ const Mixtapes = (function () {
     const MAX_PER_ARTIST = 2;
 
     const SHELF_TOPICS = 5;
-    const RACK_TOPICS = 22;
-    const RACK_WILDCARDS = 2;
+    const BOX_TOPICS = 22;
+    const BOX_WILDCARDS = 2;
     const TAPES_PER_CUBBY = 6;
 
     let allTracks = [];
     let tapesById = {};
     let nextId = 0;
     let shelfIds = [];
-    let rackIds = [];
+    let boxIds = [];
 
     /* ── Initialization ── */
     function init(tracks) {
@@ -148,29 +148,29 @@ const Mixtapes = (function () {
         if (shelf) shelf.style.display = visible ? '' : 'none';
     }
 
-    /* ── Tape rack (browse mode) ──
+    /* ── Tape box (browse mode) ──
      * Cubbies of tapes lying flat, spines out. Each spine gets a small
      * random offset so the stacks look hand-placed.
      */
-    function dealRack() {
-        rackIds = register(rackIds, shuffle(buildTapes(RACK_TOPICS, RACK_WILDCARDS)));
-        rackIds.forEach(id => { tapesById[id].shift = Math.round(Math.random() * 10 - 5); });
-        renderRack(document.getElementById('track-grid'));
+    function dealBox() {
+        boxIds = register(boxIds, shuffle(buildTapes(BOX_TOPICS, BOX_WILDCARDS)));
+        boxIds.forEach(id => { tapesById[id].shift = Math.round(Math.random() * 10 - 5); });
+        renderBox(document.getElementById('track-grid'));
     }
 
-    function renderRack(container) {
+    function renderBox(container) {
         if (!container) return;
 
-        let html = '<div class="tape-rack-header">';
-        html += '<span class="tape-rack-count">' + rackIds.length + ' tapes</span>';
-        html += '<button type="button" class="mixtape-deal-btn" onclick="Mixtapes.dealRack()" title="Deal new tapes">';
+        let html = '<div class="tape-box-header">';
+        html += '<span class="tape-box-count">' + boxIds.length + ' tapes</span>';
+        html += '<button type="button" class="mixtape-deal-btn" onclick="Mixtapes.dealBox()" title="Deal new tapes">';
         html += '<span class="material-symbols-outlined">shuffle</span> deal new tapes</button>';
         html += '</div>';
 
-        html += '<div class="tape-rack">';
-        for (let i = 0; i < rackIds.length; i += TAPES_PER_CUBBY) {
+        html += '<div class="tape-box">';
+        for (let i = 0; i < boxIds.length; i += TAPES_PER_CUBBY) {
             html += '<div class="tape-cubby">';
-            rackIds.slice(i, i + TAPES_PER_CUBBY).forEach(id => {
+            boxIds.slice(i, i + TAPES_PER_CUBBY).forEach(id => {
                 const tape = tapesById[id];
                 html += '<button type="button" class="tape-spine" style="--shift: ' + tape.shift + 'px;" onclick="Mixtapes.open(' + id + ')" title="Open ' + Utils.escapeAttr(tape.name) + ' tape">';
                 html += '<span class="tape-spine-label postit-' + tape.color + '">';
@@ -232,8 +232,8 @@ const Mixtapes = (function () {
     return {
         init,
         deal,
-        dealRack,
-        renderRack,
+        dealBox,
+        renderBox,
         open,
         play,
         setVisible,
