@@ -12,7 +12,7 @@ const Library = (function () {
     let currentTracks = [];
     let currentQuery = '';
     let currentTag = '';
-    let browseMode = 'none';     // 'none' | 'artist' | 'year' | 'tag' | 'album'
+    let browseMode = 'none';     // 'none' | 'artist' | 'year' | 'tag' | 'tapes'
     let browseFilter = null;     // { mode: 'artist', value: 'Daft Punk' } when drilled in
 
     /* ── Edit Tags State ── */
@@ -61,7 +61,6 @@ const Library = (function () {
         if (browseFilter) {
             filtered = filtered.filter(t => {
                 if (browseFilter.mode === 'artist') return t.artist === browseFilter.value;
-                if (browseFilter.mode === 'album') return t.album === browseFilter.value;
                 if (browseFilter.mode === 'year') return String(t.release_year || '') === browseFilter.value;
                 if (browseFilter.mode === 'tag') return t.tags && t.tags.includes(browseFilter.value);
                 return true;
@@ -209,13 +208,18 @@ const Library = (function () {
         const container = document.getElementById('track-grid');
         if (!container) return;
 
+        // The tape rack is drawn by Mixtapes from its current deal
+        if (mode === 'tapes') {
+            Mixtapes.renderRack(container);
+            updateTrackCount(allTracks.length);
+            return;
+        }
+
         const categories = {};
         allTracks.forEach(t => {
             let keys = [];
             if (mode === 'artist') {
                 keys = [t.artist || 'Unknown'];
-            } else if (mode === 'album') {
-                keys = [t.album || 'Unknown'];
             } else if (mode === 'year') {
                 keys = [t.release_year ? String(t.release_year) : 'Unknown'];
             } else if (mode === 'tag') {
@@ -308,14 +312,15 @@ const Library = (function () {
         const text = document.getElementById('active-group-text');
         const icon = document.getElementById('group-icon');
         if (indicator && text) {
-            const labels = { artist: 'Artist', year: 'Year', tag: 'Tag', album: 'Album' };
-            const icons = { artist: 'person', year: 'calendar_month', tag: 'label', album: 'album' };
-            text.textContent = 'by ' + labels[mode];
+            const labels = { artist: 'by Artist', year: 'by Year', tag: 'by Tag', tapes: 'tape rack' };
+            const icons = { artist: 'person', year: 'calendar_month', tag: 'label', tapes: 'shelves' };
+            text.textContent = labels[mode];
             if (icon) icon.textContent = icons[mode];
             indicator.style.display = 'inline-flex';
         }
 
         Mixtapes.setVisible(false);
+        if (mode === 'tapes') Mixtapes.dealRack();
         renderBrowseGrid(mode);
     }
 
@@ -345,7 +350,7 @@ const Library = (function () {
     }
 
     function updateBrowseButtons(activeMode) {
-        ['artist', 'year', 'tag', 'album'].forEach(m => {
+        ['artist', 'year', 'tag', 'tapes'].forEach(m => {
             const btn = document.getElementById('group-' + m + '-btn');
             if (btn) btn.classList.toggle('active', m === activeMode);
         });
@@ -519,10 +524,7 @@ const Library = (function () {
      * browse card and on every song.
      */
     function tagPostitStyle(tag) {
-        const colors = ['yellow', 'pink', 'green', 'blue', 'orange'];
-        let hash = 0;
-        for (const ch of tag) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
-        return '--postit: var(--postit-' + colors[Math.abs(hash) % colors.length] + ');';
+        return '--postit: var(--postit-' + Utils.tagColor(tag) + ');';
     }
 
     /* ── Edit Tags ── */
