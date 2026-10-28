@@ -68,6 +68,16 @@
         </div>
     </div>
 
+    <section id="mixtape-shelf" class="mixtape-shelf" aria-label="Mixtapes">
+        <div class="mixtape-shelf-header">
+            <h2 class="mixtape-shelf-title">mixtapes</h2>
+            <button type="button" class="mixtape-deal-btn" onclick="Mixtapes.deal()" title="Deal new tapes">
+                <span class="material-symbols-outlined">shuffle</span> deal new tapes
+            </button>
+        </div>
+        <div id="mixtape-shelf-tapes" class="mixtape-shelf-tapes"></div>
+    </section>
+
     <div id="track-grid">
         <!-- Loading state — replaced by library.js -->
         <div class="loading-state">
@@ -131,9 +141,10 @@
     window.IMAGE_BASE_URL = "{{ image_base_url }}";
 </script>
 <script src="/static/js/utils.js?v=1"></script>
-<script src="/static/js/audio.js?v=6"></script>
+<script src="/static/js/audio.js?v=9"></script>
 <script src="/static/js/playlist.js?v=1"></script>
-<script src="/static/js/library.js?v=13"></script>
+<script src="/static/js/mixtapes.js?v=2"></script>
+<script src="/static/js/library.js?v=14"></script>
 <script>
     (function () {
         function boot() {

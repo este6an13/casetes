@@ -33,6 +33,7 @@ const Library = (function () {
             onCloseModal: function () { window.closeModal(); }
         });
 
+        Mixtapes.init(allTracks);
         applyFiltersAndRender();
     }
 
@@ -115,6 +116,9 @@ const Library = (function () {
         if (hint) {
             hint.classList.toggle('visible', isColorSort);
         }
+
+        // The shelf only shows on the plain, unfiltered library
+        Mixtapes.setVisible(!currentQuery && !currentTag && !browseFilter);
 
         currentTracks = filtered;
         renderTrackGrid(filtered);
@@ -307,6 +311,7 @@ const Library = (function () {
             indicator.style.display = 'inline-flex';
         }
 
+        Mixtapes.setVisible(false);
         renderBrowseGrid(mode);
     }
 

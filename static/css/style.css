@@ -2114,3 +2114,373 @@ body.modal-open {
     border-color: var(--border-hover);
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
 }
+/* ── Post-it notes (mixtape labels, tags) ── */
+:root {
+    --font-hand: 'Caveat', 'Segoe Print', cursive;
+    --postit-ink: #2b2620;
+    --postit-yellow: #f6e27f;
+    --postit-pink: #f5b3c4;
+    --postit-green: #bfe3a6;
+    --postit-blue: #a9d6f2;
+    --postit-orange: #f8c48a;
+}
+
+.postit-yellow { background: var(--postit-yellow); }
+.postit-pink { background: var(--postit-pink); }
+.postit-green { background: var(--postit-green); }
+.postit-blue { background: var(--postit-blue); }
+.postit-orange { background: var(--postit-orange); }
+
+.detail-tag {
+    border-radius: 2px;
+    background: var(--postit-yellow);
+    color: var(--postit-ink);
+    font-family: var(--font-hand);
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    transform: rotate(-1.5deg);
+}
+
+.detail-tag:nth-child(5n+2) { background: var(--postit-pink); transform: rotate(1.2deg); }
+.detail-tag:nth-child(5n+3) { background: var(--postit-green); transform: rotate(-0.6deg); }
+.detail-tag:nth-child(5n+4) { background: var(--postit-blue); transform: rotate(1.6deg); }
+.detail-tag:nth-child(5n+5) { background: var(--postit-orange); transform: rotate(-1deg); }
+
+.detail-tag:hover {
+    background: #fff3b0;
+    color: var(--postit-ink);
+    transform: rotate(0deg) translateY(-1px);
+}
+
+.detail-tag.detail-tag-edit {
+    background: var(--bg-card-hover);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    box-shadow: none;
+    transform: none;
+}
+
+/* ── Mixtape shelf ── */
+.mixtape-shelf {
+    margin-bottom: 2rem;
+}
+
+.mixtape-shelf-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.mixtape-shelf-title {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1.3rem;
+    color: var(--text-secondary);
+}
+
+.mixtape-deal-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+.mixtape-deal-btn .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+.mixtape-deal-btn:hover {
+    color: var(--accent);
+}
+
+.mixtape-shelf-tapes {
+    display: flex;
+    gap: 1.1rem;
+    overflow-x: auto;
+    padding: 0.5rem 0.25rem 1.1rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+    border-bottom: 1px solid var(--border);
+}
+
+/* A cassette: shell, post-it label, window with reels, covers peeking out */
+.mixtape {
+    position: relative;
+    flex-shrink: 0;
+    width: 210px;
+    height: 133px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background:
+        radial-gradient(circle at 9px 9px, #3a3a44 0 2.5px, transparent 3px),
+        radial-gradient(circle at calc(100% - 9px) 9px, #3a3a44 0 2.5px, transparent 3px),
+        radial-gradient(circle at 9px calc(100% - 9px), #3a3a44 0 2.5px, transparent 3px),
+        radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), #3a3a44 0 2.5px, transparent 3px),
+        linear-gradient(160deg, #1f1f27, #131318);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    scroll-snap-align: start;
+    text-align: left;
+    color: var(--postit-ink);
+    font-family: var(--font-sans);
+    transition: var(--transition);
+    transition-property: transform, box-shadow, border-color;
+}
+
+.mixtape:hover {
+    transform: translateY(-4px) rotate(-1deg);
+    border-color: var(--border-hover);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.mixtape:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.mixtape-label {
+    position: absolute;
+    top: 9px;
+    left: 16px;
+    right: 16px;
+    height: 76px;
+    padding: 0.3rem 0.55rem;
+    border-radius: 3px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    transform: rotate(-0.8deg);
+}
+
+.mixtape:nth-child(2n) .mixtape-label {
+    transform: rotate(0.7deg);
+}
+
+.mixtape-name {
+    display: block;
+    font-family: var(--font-hand);
+    font-weight: 700;
+    font-size: 1.3rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mixtape-meta {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.65;
+}
+
+.mixtape-window {
+    position: absolute;
+    top: 55px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 96px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 12px;
+    background: #15151a;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.mixtape-reel {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, #15151a 0 3px, transparent 3.5px),
+        repeating-conic-gradient(#e6e6ea 0 30deg, #8e8e98 30deg 60deg);
+}
+
+.mixtape-covers {
+    position: absolute;
+    left: 50%;
+    bottom: 9px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+}
+
+.mixtape-covers img {
+    width: 26px;
+    height: 26px;
+    border-radius: 3px;
+    object-fit: cover;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Mixtape tracklist (modal) ── */
+.tape-card-header {
+    padding: 2rem 1.5rem 1rem;
+    text-align: center;
+}
+
+.tape-card-postit {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.4rem 1.1rem 0.5rem;
+    border-radius: 3px;
+    color: var(--postit-ink);
+    font-family: var(--font-hand);
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.1;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    transform: rotate(-1.5deg);
+}
+
+.tape-card-meta {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.tape-play-btn {
+    margin-top: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.tape-tracklist {
+    padding: 0 1rem 1.25rem;
+}
+
+.tape-side {
+    margin: 0.75rem 0.5rem 0.25rem;
+    font-family: var(--font-hand);
+    font-size: 1.25rem;
+    color: var(--text-muted);
+}
+
+.tape-track {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1.5rem 40px 1fr;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0.5rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--transition);
+}
+
+.tape-track:hover {
+    background: var(--bg-card-hover);
+}
+
+.tape-track.is-current {
+    background: var(--accent-soft);
+}
+
+.tape-track.is-current .tape-track-title {
+    color: var(--accent);
+}
+
+.tape-track-num {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+.tape-track-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    background: var(--bg-card-hover);
+}
+
+.tape-track-text {
+    min-width: 0;
+}
+
+.tape-track-title,
+.tape-track-artist {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tape-track-title {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.tape-track-artist {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.np-source {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.np-source:empty {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .mixtape {
+        width: 180px;
+        height: 114px;
+    }
+
+    .mixtape-label {
+        height: 64px;
+    }
+
+    .mixtape-name {
+        font-size: 1.15rem;
+    }
+
+    .mixtape-window {
+        top: 46px;
+        width: 84px;
+        height: 20px;
+    }
+
+    .mixtape-reel {
+        width: 13px;
+        height: 13px;
+    }
+
+    .mixtape-covers img {
+        width: 22px;
+        height: 22px;
+    }
+}

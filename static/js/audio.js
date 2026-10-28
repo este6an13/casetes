@@ -12,6 +12,8 @@ const AudioPlayer = (function () {
     let currentPlayingId = null;
     let isRadioMode = false;
     let radioHistory = [];
+    let queue = null;            // { ids, index, name } while a mixtape plays
+    let playToken = 0;           // bumps on every new playTrack call
 
     /* ── Callbacks (set by Library) ── */
     let onStopCallback = null;   // called when audio stops entirely
@@ -27,7 +29,9 @@ const AudioPlayer = (function () {
             globalAudio.addEventListener('pause', updateGlobalAudioUI);
             globalAudio.addEventListener('ended', () => {
                 updateGlobalAudioUI();
-                if (isRadioMode) {
+                if (queue) {
+                    advanceQueue(1);
+                } else if (isRadioMode) {
                     playNextRadioTrack();
                 } else {
                     stopGlobalAudio();
@@ -39,6 +43,11 @@ const AudioPlayer = (function () {
     /* ── Play Track ──
      * Tries the embedded preview_url first. If playback fails (e.g. URL
      * expired), falls back to fetching a fresh URL from the API.
+     *
+     * Each call takes a token. When a newer track starts while this one is
+     * still loading, the browser aborts this play(); the stale call then
+     * steps aside instead of treating it as a broken track (which used to
+     * swap the source back and skip through tapes and radio).
      */
     async function playTrack(deezerId) {
         const track = allTracks.find(t => t.deezer_id === deezerId);
@@ -52,6 +61,8 @@ const AudioPlayer = (function () {
             return;
         }
 
+        const token = ++playToken;
+        const isStale = () => token !== playToken;
         currentPlayingId = deezerId;
 
         // Update Now Playing bar UI eagerly
@@ -68,15 +79,11 @@ const AudioPlayer = (function () {
         if (!track.preview_url) {
             // No URL at all — try fetching a fresh one from the API
             const freshUrl = await fetchFreshPreviewUrl(deezerId);
+            if (isStale()) return;
             if (freshUrl) {
                 track.preview_url = freshUrl;
             } else {
-                if (isRadioMode) {
-                    playNextRadioTrack(true);
-                } else {
-                    alert("No preview is available for this track.");
-                    stopGlobalAudio();
-                }
+                skipUnplayable("No preview is available for this track.");
                 return;
             }
         }
@@ -86,41 +93,57 @@ const AudioPlayer = (function () {
         try {
             await globalAudio.play();
         } catch (e) {
+            if (isStale()) return;
+            // Autoplay blocked (no recent click, background tab): the track is
+            // fine, so stay on it paused instead of skipping through a tape.
+            if (e.name === 'NotAllowedError') {
+                updateGlobalAudioUI();
+                return;
+            }
             console.warn("Embedded preview URL failed, fetching fresh URL...", e.message);
 
             // Attempt 2: Fetch a fresh preview URL from the API
             const freshUrl = await fetchFreshPreviewUrl(deezerId);
+            if (isStale()) return;
             if (freshUrl) {
                 track.preview_url = freshUrl;
                 globalAudio.src = freshUrl;
                 try {
                     await globalAudio.play();
                 } catch (e2) {
-                    console.error("Fresh preview URL also failed:", e2);
-                    if (isRadioMode) {
-                        playNextRadioTrack(true);
-                    } else {
-                        alert("Could not play song preview.");
-                        stopGlobalAudio();
+                    if (isStale()) return;
+                    if (e2.name === 'NotAllowedError') {
+                        updateGlobalAudioUI();
+                        return;
                     }
+                    console.error("Fresh preview URL also failed:", e2);
+                    skipUnplayable("Could not play song preview.");
                     return;
                 }
             } else {
-                if (isRadioMode) {
-                    playNextRadioTrack(true);
-                } else {
-                    alert("Could not load song preview from Deezer.");
-                    stopGlobalAudio();
-                }
+                skipUnplayable("Could not load song preview from Deezer.");
                 return;
             }
         }
+        if (isStale()) return;
 
         // Push to radio history
         if (radioHistory[radioHistory.length - 1] !== deezerId) {
             radioHistory.push(deezerId);
         }
         updateGlobalAudioUI();
+    }
+
+    /* ── A track couldn't play: move on in a tape or radio, or tell the user ── */
+    function skipUnplayable(message) {
+        if (queue) {
+            advanceQueue(1);
+        } else if (isRadioMode) {
+            playNextRadioTrack(true);
+        } else {
+            alert(message);
+            stopGlobalAudio();
+        }
     }
 
     /* ── Fetch a fresh preview URL (fallback) ──
@@ -189,6 +212,8 @@ const AudioPlayer = (function () {
         globalAudio.currentTime = 0;
         currentPlayingId = null;
         isRadioMode = false;
+        queue = null;
+        playToken++;
 
         // Hide bar
         document.getElementById('now-playing-bar').classList.remove('active');
@@ -212,12 +237,14 @@ const AudioPlayer = (function () {
             return;
         }
         isRadioMode = false;
+        queue = null;
         playTrack(deezerId);
     }
 
     function toggleInlinePlay(deezerId, btn) {
-        // Clicking a track in the grid disables radio mode
+        // Clicking a track in the grid disables radio mode and any tape
         isRadioMode = false;
+        queue = null;
         playTrack(deezerId);
     }
 
@@ -253,6 +280,40 @@ const AudioPlayer = (function () {
         } else if (modalIcon) {
             modalIcon.textContent = isPaused ? 'play_arrow' : 'pause';
         }
+
+        // Where the music comes from, and the current row of an open tape
+        const npSource = document.getElementById('np-source');
+        if (npSource) {
+            npSource.textContent = queue
+                ? queue.name + ' · ' + (queue.index + 1) + '/' + queue.ids.length
+                : (isRadioMode ? 'radio' : '');
+        }
+        document.querySelectorAll('.tape-track').forEach(row => {
+            row.classList.toggle('is-current', row.dataset.deezerId === String(currentPlayingId));
+        });
+    }
+
+    /* ── Tape queue ── */
+    function playQueue(ids, startIndex, name) {
+        if (!ids || !ids.length) return;
+        isRadioMode = false;
+        queue = { ids: ids, index: startIndex, name: name };
+        playTrack(ids[startIndex]);
+    }
+
+    function advanceQueue(step) {
+        const next = queue.index + step;
+        if (next < 0) {
+            globalAudio.currentTime = 0;
+            globalAudio.play();
+            return;
+        }
+        if (next >= queue.ids.length) {
+            stopGlobalAudio();
+            return;
+        }
+        queue.index = next;
+        playTrack(queue.ids[next]);
     }
 
     /* ── Radio Mode ── */
@@ -263,6 +324,7 @@ const AudioPlayer = (function () {
             return;
         }
         isRadioMode = true;
+        queue = null;
         if (currentPlayingId) {
             alert("Radio mode activated from current track.");
             return;
@@ -272,6 +334,10 @@ const AudioPlayer = (function () {
     }
 
     function playPrevRadioTrack() {
+        if (queue) {
+            advanceQueue(-1);
+            return;
+        }
         if (radioHistory.length > 1) {
             radioHistory.pop();
             const prevId = radioHistory[radioHistory.length - 1];
@@ -284,6 +350,10 @@ const AudioPlayer = (function () {
     }
 
     function playNextRadioTrack(manualSkip = false) {
+        if (queue) {
+            advanceQueue(1);
+            return;
+        }
         if (!isRadioMode && !manualSkip) return;
         isRadioMode = true;
 
@@ -371,6 +441,8 @@ const AudioPlayer = (function () {
         startRadioMode,
         playPrevRadioTrack,
         playNextRadioTrack,
+        playQueue,
+        refreshUI: updateGlobalAudioUI,
         getCurrentPlayingId,
         isPlaying,
     };
