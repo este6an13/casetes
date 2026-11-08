@@ -34,6 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from . import deezer_playlist
 from .music_service import (
     _compute_cover_color,
     download_artist_picture,
@@ -618,7 +619,7 @@ async def sync_database():
         )
         # Attempt to set Cache-Control on all items in covers and artists folders
         subprocess.run(meta_cmd, shell=is_windows, capture_output=True, text=True)
-        return {"message": "Sync completed successfully\n" + result.stdout[:500]}
+        bucket_message = "Sync completed successfully\n" + result.stdout[:500]
     except subprocess.CalledProcessError as e:
         raise HTTPException(
             status_code=500,
@@ -629,6 +630,46 @@ async def sync_database():
             status_code=500,
             detail="Error: 'gsutil' command not found. Please ensure Google Cloud CLI is installed.",
         )
+
+    # Mirror the library into the Deezer playlist; its problems don't undo
+    # the bucket sync, they're reported in the message instead
+    library_ids = [str(t["deezer_id"]) for t in _read_library()]
+    try:
+        deezer_message = await deezer_playlist.mirror_playlist(library_ids)
+    except (deezer_playlist.DeezerError, httpx.HTTPError) as e:
+        deezer_message = f"Deezer playlist: failed ({e})"
+
+    return {"message": bucket_message + "\n" + deezer_message}
+
+
+@app.get("/api/deezer/login")
+async def deezer_login(request: Request):
+    """One-time step: send the admin to Deezer to authorize playlist access."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    try:
+        url = deezer_playlist.auth_url(str(request.url_for("deezer_callback")))
+    except deezer_playlist.DeezerError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return RedirectResponse(url)
+
+
+@app.get("/api/deezer/callback", name="deezer_callback")
+async def deezer_callback(code: str = "", error_reason: str = ""):
+    """Deezer redirects here after login; keep the token for later syncs."""
+    if not ADMIN_MODE:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if not code:
+        raise HTTPException(status_code=400, detail=f"Deezer didn't authorize: {error_reason or 'no code'}")
+    try:
+        token = await deezer_playlist.exchange_code(code)
+    except deezer_playlist.DeezerError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    deezer_playlist.save_token(token)
+    return HTMLResponse(
+        "<p>Deezer connected. The token is saved in .env; the next sync will update the playlist.</p>"
+        '<p><a href="/">Back to the library</a></p>'
+    )
 
 
 @app.get("/api/export/{fmt}")
